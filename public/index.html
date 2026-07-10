@@ -124,22 +124,31 @@
   button.primary:hover { background: var(--accent-dark); }
   button:disabled { opacity: .45; cursor: default; }
 
-  .table-wrap {
-    overflow-x: auto;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 12px;
+  #cards { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; overflow: hidden;
   }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 1250px; }
-  th, td {
-    border-bottom: 1px solid var(--line);
-    padding: 9px 10px; text-align: left; vertical-align: top;
+  .card-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; background: #faf9f6;
+    border-bottom: 1px solid var(--line); font-size: 13px;
   }
-  th {
-    background: #faf9f6; font-weight: 600; font-size: 12px;
-    color: var(--sub); white-space: nowrap; position: sticky; top: 0;
+  .card-head .fname { flex: 1; font-weight: 600; word-break: break-all; }
+  table.kv { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .kv th {
+    width: 9em; background: #faf9f6; color: var(--sub);
+    font-weight: 600; font-size: 12px; text-align: left;
+    padding: 8px 12px; border-bottom: 1px solid var(--line);
+    vertical-align: top; white-space: nowrap;
   }
-  td[contenteditable] { min-width: 90px; }
+  .kv td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .kv tr:last-child th, .kv tr:last-child td { border-bottom: none; }
+  .kv td.num { text-align: left; }
+  #empty {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; max-width: 860px;
+  }
   td[contenteditable]:focus {
     outline: 2px solid var(--accent); outline-offset: -2px;
     background: #fdf8f4;
@@ -208,31 +217,8 @@
     <button id="clearBtn">全件クリア</button>
     <button id="csvBtn" class="primary">CSVダウンロード</button>
   </div>
-  <div class="table-wrap">
-    <table id="resultTable">
-      <thead>
-        <tr>
-          <th>ファイル</th>
-          <th>契約書名</th>
-          <th>取引先</th>
-          <th>契約締結日</th>
-          <th>開始日</th>
-          <th>終了日</th>
-          <th>金額(税抜)</th>
-          <th>消費税</th>
-          <th>金額(税込)</th>
-          <th>支払形態</th>
-          <th>支払条件</th>
-          <th>勘定科目</th>
-          <th>摘要</th>
-          <th>備考</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div id="empty">まだ抽出結果がありません。契約書をアップロードしてください。</div>
-  </div>
+  <div id="cards"></div>
+  <div id="empty">まだ抽出結果がありません。契約書をアップロードしてください。</div>
 </main>
 
 <script>
@@ -257,7 +243,7 @@ const rows = [];
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const queue = document.getElementById("queue");
-const tbody = document.getElementById("tbody");
+const cards = document.getElementById("cards");
 
 dropzone.addEventListener("click", () => fileInput.click());
 dropzone.addEventListener("dragover", (e) => {
@@ -371,13 +357,35 @@ function addRow(data) {
 }
 
 function render() {
-  tbody.innerHTML = "";
+  cards.innerHTML = "";
   document.getElementById("empty").style.display = rows.length ? "none" : "block";
   document.getElementById("count").textContent = rows.length + "件";
 
   rows.forEach((row, i) => {
-    const tr = document.createElement("tr");
+    const card = document.createElement("section");
+    card.className = "card";
+
+    const head = document.createElement("div");
+    head.className = "card-head";
+    const fname = document.createElement("span");
+    fname.className = "fname";
+    fname.textContent = row.filename || "(ファイル名なし)";
+    const btn = document.createElement("button");
+    btn.className = "del";
+    btn.textContent = "✕";
+    btn.title = "この結果を削除";
+    btn.addEventListener("click", () => { rows.splice(i, 1); render(); });
+    head.appendChild(fname);
+    head.appendChild(btn);
+    card.appendChild(head);
+
+    const kv = document.createElement("table");
+    kv.className = "kv";
     for (const col of COLUMNS) {
+      if (col.key === "filename") continue;
+      const tr = document.createElement("tr");
+      const th = document.createElement("th");
+      th.textContent = col.label;
       const td = document.createElement("td");
       if (col.cls) td.className = col.cls;
       let v = row[col.key];
@@ -396,17 +404,12 @@ function render() {
           }
         });
       }
+      tr.appendChild(th);
       tr.appendChild(td);
+      kv.appendChild(tr);
     }
-    const tdDel = document.createElement("td");
-    const btn = document.createElement("button");
-    btn.className = "del";
-    btn.textContent = "✕";
-    btn.title = "この行を削除";
-    btn.addEventListener("click", () => { rows.splice(i, 1); render(); });
-    tdDel.appendChild(btn);
-    tr.appendChild(tdDel);
-    tbody.appendChild(tr);
+    card.appendChild(kv);
+    cards.appendChild(card);
   });
 }
 
