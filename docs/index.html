@@ -63,8 +63,42 @@
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
     margin-top: 10px; font-size: 13px; color: var(--sub);
   }
-  .samples .sample { padding: 6px 12px; border-radius: 999px; }
-  .samples a { color: var(--sub); font-size: 12px; margin-left: auto; }
+  .sample-group { display: inline-flex; }
+  .sample-group .sample {
+    padding: 6px 12px; border-radius: 999px 0 0 999px; border-right: none;
+  }
+  .sample-group .preview {
+    padding: 6px 10px; border-radius: 0 999px 999px 0;
+    color: var(--sub);
+  }
+  .sample-group .preview:hover { color: var(--accent); }
+
+  dialog#previewDlg {
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 0; width: min(860px, 95vw); height: min(85vh, 1100px);
+    box-shadow: 0 12px 40px rgba(0,0,0,.18);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  dialog#previewDlg:not([open]) { display: none; }
+  dialog#previewDlg::backdrop { background: rgba(31,41,51,.45); }
+  .preview-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+    background: #faf9f6;
+  }
+  .preview-head h3 { margin: 0; font-size: 14px; flex: 1; }
+  .preview-head a {
+    font-size: 12px; color: var(--sub); margin-right: 4px;
+  }
+  #previewBody {
+    flex: 1; overflow-y: auto; background: #525659; padding: 18px 12px;
+  }
+  #previewBody img {
+    display: block; width: 100%; max-width: 720px; height: auto;
+    margin: 0 auto 16px; background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,.45);
+  }
+  #previewBody .loading { color: #ddd; text-align: center; padding: 40px; font-size: 13px; }
   #dropzone strong { color: var(--accent); }
   #dropzone .hint { color: var(--sub); font-size: 12px; margin-top: 8px; }
 
@@ -166,12 +200,32 @@
   </div>
   <div class="samples">
     <span>サンプル契約書で試す(架空のダミー):</span>
-    <button class="sample" data-file="samples/gyomu-itaku.pdf" data-name="業務委託契約書.pdf">業務委託</button>
-    <button class="sample" data-file="samples/chintaishaku.pdf" data-name="建物賃貸借契約書.pdf">オフィス賃貸</button>
-    <button class="sample" data-file="samples/license.pdf" data-name="ソフトウェア利用契約書.pdf">SaaS利用</button>
-    <button class="sample" data-file="samples/komon.pdf" data-name="税務顧問契約書.pdf">税務顧問</button>
-    <button class="sample" data-file="samples/koukoku.pdf" data-name="広告掲載契約書.pdf">広告掲載</button>
+    <span class="sample-group">
+      <button class="sample" data-file="samples/gyomu-itaku.pdf" data-name="業務委託契約書.pdf">業務委託</button><button class="preview" data-file="samples/gyomu-itaku.pdf" data-name="業務委託契約書.pdf" title="プレビュー">👁</button>
+    </span>
+    <span class="sample-group">
+      <button class="sample" data-file="samples/chintaishaku.pdf" data-name="建物賃貸借契約書.pdf">オフィス賃貸</button><button class="preview" data-file="samples/chintaishaku.pdf" data-name="建物賃貸借契約書.pdf" title="プレビュー">👁</button>
+    </span>
+    <span class="sample-group">
+      <button class="sample" data-file="samples/license.pdf" data-name="ソフトウェア利用契約書.pdf">SaaS利用</button><button class="preview" data-file="samples/license.pdf" data-name="ソフトウェア利用契約書.pdf" title="プレビュー">👁</button>
+    </span>
+    <span class="sample-group">
+      <button class="sample" data-file="samples/komon.pdf" data-name="税務顧問契約書.pdf">税務顧問</button><button class="preview" data-file="samples/komon.pdf" data-name="税務顧問契約書.pdf" title="プレビュー">👁</button>
+    </span>
+    <span class="sample-group">
+      <button class="sample" data-file="samples/koukoku.pdf" data-name="広告掲載契約書.pdf">広告掲載</button><button class="preview" data-file="samples/koukoku.pdf" data-name="広告掲載契約書.pdf" title="プレビュー">👁</button>
+    </span>
   </div>
+
+  <dialog id="previewDlg">
+    <div class="preview-head">
+      <h3 id="previewTitle"></h3>
+      <a id="previewOpen" target="_blank" rel="noopener">新しいタブで開く</a>
+      <button id="previewExtract" class="primary">この契約書で抽出する</button>
+      <button id="previewClose">閉じる</button>
+    </div>
+    <div id="previewBody"></div>
+  </dialog>
   <div id="queue"></div>
 
   <div class="toolbar">
@@ -442,21 +496,65 @@ function handleFiles(fileList) {
   for (const file of fileList) processFile(file);
 }
 
-// サンプル契約書ボタン: クリックだけでPDFを取得して抽出にかける
+// サンプル契約書: クリックだけでPDFを取得して抽出にかける
+async function runSample(fileUrl, name) {
+  const resp = await fetch(fileUrl);
+  if (!resp.ok) throw new Error("サンプルの取得に失敗しました");
+  const blob = await resp.blob();
+  await processFile(new File([blob], name, { type: "application/pdf" }));
+}
+
 document.querySelectorAll(".sample").forEach((btn) => {
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {
-      const resp = await fetch(btn.dataset.file);
-      if (!resp.ok) throw new Error("サンプルの取得に失敗しました");
-      const blob = await resp.blob();
-      await processFile(new File([blob], btn.dataset.name, { type: "application/pdf" }));
+      await runSample(btn.dataset.file, btn.dataset.name);
     } catch (err) {
       alert(err.message);
     } finally {
       btn.disabled = false;
     }
   });
+});
+
+// サンプルのプレビュー(👁ボタン)
+const previewDlg = document.getElementById("previewDlg");
+const previewBody = document.getElementById("previewBody");
+
+document.querySelectorAll(".preview").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.getElementById("previewTitle").textContent = btn.dataset.name;
+    document.getElementById("previewOpen").href = btn.dataset.file;
+    previewDlg.dataset.file = btn.dataset.file;
+    previewDlg.dataset.name = btn.dataset.name;
+    // PDFはあらかじめPNG化してあるので画像で表示(モバイルでも確実に見える)
+    previewBody.innerHTML = "";
+    const base = btn.dataset.file.replace(/^(.*\/)?([^/]+)\.pdf$/, "$1previews/$2");
+    const pages = Number(btn.dataset.pages || 2);
+    for (let p = 1; p <= pages; p++) {
+      const img = document.createElement("img");
+      img.src = `${base}-${p}.png`;
+      img.alt = `${btn.dataset.name} ${p}ページ目`;
+      img.loading = "lazy";
+      previewBody.appendChild(img);
+    }
+    previewDlg.showModal();
+    previewBody.scrollTop = 0;
+  });
+});
+document.getElementById("previewClose").addEventListener("click", () => previewDlg.close());
+previewDlg.addEventListener("click", (e) => {
+  if (e.target === previewDlg) previewDlg.close();
+});
+previewDlg.addEventListener("close", () => { previewBody.innerHTML = ""; });
+document.getElementById("previewExtract").addEventListener("click", async () => {
+  const { file, name } = previewDlg.dataset;
+  previewDlg.close();
+  try {
+    await runSample(file, name);
+  } catch (err) {
+    alert(err.message);
+  }
 });
 
 async function processFile(file) {
