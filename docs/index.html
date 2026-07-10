@@ -24,23 +24,30 @@
     color: var(--ink);
   }
   header { padding: 28px 32px 8px; }
-  header h1 { margin: 0; font-size: 22px; letter-spacing: 0.02em; }
-  header p { margin: 6px 0 0; color: var(--sub); font-size: 13px; }
-  main { padding: 20px 32px 60px; max-width: 1400px; margin: 0 auto; }
+  .header-row { display: flex; align-items: center; gap: 12px; max-width: 1400px; margin: 0 auto; }
+  .header-row h1 { margin: 0; font-size: 22px; letter-spacing: 0.02em; flex: 1; }
+  header p { margin: 6px 0 0; color: var(--sub); font-size: 13px; max-width: 1400px; margin-left: auto; margin-right: auto; }
 
-  .keybar {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;
-    font-size: 13px;
+  dialog#settings {
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 24px; width: min(520px, 90vw);
+    box-shadow: 0 12px 40px rgba(0,0,0,.18);
+    font-size: 13px; color: var(--ink);
   }
-  .keybar label { font-weight: 600; white-space: nowrap; }
-  .keybar input {
-    flex: 1; min-width: 220px; font: inherit;
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  dialog#settings::backdrop { background: rgba(31,41,51,.45); }
+  dialog#settings h3 { margin: 0 0 14px; font-size: 16px; }
+  dialog#settings label { display: block; font-weight: 600; margin-bottom: 6px; }
+  dialog#settings input {
+    width: 100%; font: inherit;
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
   }
-  .keybar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .keybar .note { width: 100%; color: var(--sub); font-size: 12px; }
+  dialog#settings input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  dialog#settings .note { color: var(--sub); font-size: 12px; margin-top: 10px; line-height: 1.7; }
+  dialog#settings .actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+  #keyStatus { font-size: 12px; margin-top: 8px; }
+  #keyStatus.ok { color: var(--ok); }
+  #keyStatus.none { color: var(--err); }
+  main { padding: 20px 32px 60px; max-width: 1400px; margin: 0 auto; }
 
   #dropzone {
     border: 2px dashed var(--line);
@@ -127,20 +134,30 @@
 </head>
 <body>
 <header>
-  <h1>契約書アブストラクター</h1>
+  <div class="header-row">
+    <h1>契約書アブストラクター</h1>
+    <button id="settingsBtn" title="APIキーの設定">⚙ 設定</button>
+  </div>
   <p>契約書(PDF・画像・テキスト)をアップロードすると、金額・取引先・勘定科目などを自動抽出して一覧化します。セルは直接編集でき、CSVでダウンロードできます。</p>
 </header>
-<main>
-  <div class="keybar">
-    <label for="apiKey">Anthropic APIキー</label>
-    <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
-    <button id="keyClear">キーを消去</button>
-    <div class="note">
-      キーはこのブラウザ(localStorage)にのみ保存され、Anthropic API 以外には送信されません。
-      契約書ファイルも抽出のために Anthropic API へ直接送信されるのみで、他のサーバーには保存されません。
-    </div>
-  </div>
 
+<dialog id="settings">
+  <h3>設定</h3>
+  <label for="apiKey">Anthropic APIキー</label>
+  <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+  <div id="keyStatus"></div>
+  <div class="note">
+    キーはこのブラウザ(localStorage)にのみ保存され、Anthropic API 以外には送信されません。
+    契約書ファイルも抽出のために Anthropic API へ直接送信されるのみで、他のサーバーには保存されません。
+    共有PCで使ったあとは「キーを消去」を押してください。
+  </div>
+  <div class="actions">
+    <button id="keyClear">キーを消去</button>
+    <button id="settingsSave" class="primary">保存して閉じる</button>
+  </div>
+</dialog>
+
+<main>
   <div id="dropzone">
     <div><strong>クリックしてファイルを選択</strong> するか、ここにドラッグ&ドロップ</div>
     <div class="hint">PDF / PNG / JPEG / WebP / GIF / テキスト(複数可、1ファイル30MBまで)</div>
@@ -248,16 +265,54 @@ const COLUMNS = [
   { key: "confidence_notes", label: "備考",        editable: true, cls: "note" },
 ];
 
-// ---- APIキー管理(localStorageのみ) ----
+// ---- APIキー管理(設定モーダル・localStorageのみ) ----
+const settings = document.getElementById("settings");
 const keyInput = document.getElementById("apiKey");
-keyInput.value = localStorage.getItem("anthropic_api_key") || "";
-keyInput.addEventListener("change", () => {
-  localStorage.setItem("anthropic_api_key", keyInput.value.trim());
+const keyStatus = document.getElementById("keyStatus");
+
+function refreshKeyStatus() {
+  const has = !!(localStorage.getItem("anthropic_api_key") || "").trim();
+  keyStatus.textContent = has ? "✓ キーは保存済みです" : "キーが未設定です";
+  keyStatus.className = has ? "ok" : "none";
+}
+
+document.getElementById("settingsBtn").addEventListener("click", () => {
+  keyInput.value = localStorage.getItem("anthropic_api_key") || "";
+  refreshKeyStatus();
+  settings.showModal();
 });
+
+function saveKey() {
+  const v = keyInput.value.trim();
+  if (v) localStorage.setItem("anthropic_api_key", v);
+  else localStorage.removeItem("anthropic_api_key");
+  refreshKeyStatus();
+}
+
+document.getElementById("settingsSave").addEventListener("click", () => {
+  saveKey();
+  settings.close();
+});
+keyInput.addEventListener("change", saveKey);
 document.getElementById("keyClear").addEventListener("click", () => {
   localStorage.removeItem("anthropic_api_key");
   keyInput.value = "";
+  refreshKeyStatus();
 });
+// 背景クリックで閉じる(閉じる前に入力中のキーを保存)
+settings.addEventListener("click", (e) => {
+  if (e.target === settings) {
+    saveKey();
+    settings.close();
+  }
+});
+
+// 初回訪問でキー未設定なら設定を開く
+if (!(localStorage.getItem("anthropic_api_key") || "").trim()) {
+  keyInput.value = "";
+  refreshKeyStatus();
+  settings.showModal();
+}
 
 // ---- ファイル → コンテンツブロック ----
 function readAsBase64(file) {
@@ -303,7 +358,10 @@ async function fileToContentBlock(file) {
 // ---- Claude API 呼び出し(ブラウザから直接) ----
 async function extract(file) {
   const apiKey = (localStorage.getItem("anthropic_api_key") || "").trim();
-  if (!apiKey) throw new Error("APIキーを入力してください(上の入力欄)");
+  if (!apiKey) {
+    settings.showModal();
+    throw new Error("APIキーが未設定です。右上の「⚙ 設定」から入力してください");
+  }
   if (file.size > MAX_FILE_SIZE) throw new Error("ファイルサイズが上限(30MB)を超えています");
 
   const block = await fileToContentBlock(file);
