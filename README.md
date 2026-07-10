@@ -15,7 +15,23 @@
 | 摘要 | 仕訳の摘要欄に使える要約 |
 | 備考 | 抽出に不確実な点があれば注意書き |
 
-## セットアップ
+## 2つの使い方
+
+| 方式 | 場所 | APIキーの扱い |
+|---|---|---|
+| **GitHub Pages(静的版)** | `docs/index.html` | 画面で入力し、ブラウザの localStorage にのみ保存。ブラウザから Anthropic API を直接呼び出す |
+| **ローカルサーバー版** | `server.js` | サーバーの環境変数 `ANTHROPIC_API_KEY` に設定(キーがブラウザに出ないため、複数人で使うならこちら) |
+
+### GitHub Pages で公開する
+
+1. リポジトリの **Settings → Pages** を開く
+2. Source: **Deploy from a branch**、Branch: このブランチ、Folder: **/docs** を選択して Save
+3. 数分後に `https://<ユーザー名>.github.io/contract-abstracter/` で公開される
+4. ページ上部の入力欄に自分の Anthropic API キーを入力して利用
+
+> ⚠️ 静的版は各利用者が自分のAPIキーを入力する方式です。キーは localStorage に保存され Anthropic API 以外には送信されませんが、共有PCでの利用後は「キーを消去」を押してください。
+
+## ローカルサーバー版のセットアップ
 
 ```bash
 npm install

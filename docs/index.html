@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>契約書アブストラクター</title>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --card: #ffffff;
+    --ink: #1f2933;
+    --sub: #6b7280;
+    --accent: #b45f3c;
+    --accent-dark: #96492c;
+    --line: #e3e0d8;
+    --ok: #2e7d52;
+    --err: #b3403a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header { padding: 28px 32px 8px; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: 0.02em; }
+  header p { margin: 6px 0 0; color: var(--sub); font-size: 13px; }
+  main { padding: 20px 32px 60px; max-width: 1400px; margin: 0 auto; }
+
+  .keybar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;
+    font-size: 13px;
+  }
+  .keybar label { font-weight: 600; white-space: nowrap; }
+  .keybar input {
+    flex: 1; min-width: 220px; font: inherit;
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  }
+  .keybar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .keybar .note { width: 100%; color: var(--sub); font-size: 12px; }
+
+  #dropzone {
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    background: var(--card);
+    padding: 36px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.dragover { border-color: var(--accent); background: #fdf8f4; }
+  #dropzone strong { color: var(--accent); }
+  #dropzone .hint { color: var(--sub); font-size: 12px; margin-top: 8px; }
+
+  #queue { margin: 14px 0 0; display: flex; flex-direction: column; gap: 6px; }
+  .job {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 14px; font-size: 13px;
+  }
+  .job .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job .status { color: var(--sub); }
+  .job.done .status { color: var(--ok); }
+  .job.error .status { color: var(--err); }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid var(--line);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .8s linear infinite; flex: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; margin: 28px 0 12px; }
+  .toolbar h2 { margin: 0; font-size: 16px; flex: 1; }
+  button {
+    font: inherit; font-size: 13px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--ink);
+    padding: 8px 16px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: var(--accent-dark); }
+  button:disabled { opacity: .45; cursor: default; }
+
+  .table-wrap {
+    overflow-x: auto;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 1250px; }
+  th, td {
+    border-bottom: 1px solid var(--line);
+    padding: 9px 10px; text-align: left; vertical-align: top;
+  }
+  th {
+    background: #faf9f6; font-weight: 600; font-size: 12px;
+    color: var(--sub); white-space: nowrap; position: sticky; top: 0;
+  }
+  td[contenteditable]:focus {
+    outline: 2px solid var(--accent); outline-offset: -2px;
+    background: #fdf8f4;
+  }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.file { color: var(--sub); font-size: 12px; max-width: 140px; word-break: break-all; }
+  td.note { color: var(--sub); font-size: 12px; max-width: 200px; }
+  .del {
+    border: none; background: none; color: var(--sub);
+    cursor: pointer; font-size: 15px; padding: 2px 6px;
+  }
+  .del:hover { color: var(--err); }
+  #empty { text-align: center; color: var(--sub); padding: 40px; font-size: 13px; }
+  .badge {
+    display: inline-block; background: #f0ece4; border-radius: 6px;
+    padding: 2px 8px; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>契約書アブストラクター</h1>
+  <p>契約書(PDF・画像・テキスト)をアップロードすると、金額・取引先・勘定科目などを自動抽出して一覧化します。セルは直接編集でき、CSVでダウンロードできます。</p>
+</header>
+<main>
+  <div class="keybar">
+    <label for="apiKey">Anthropic APIキー</label>
+    <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+    <button id="keyClear">キーを消去</button>
+    <div class="note">
+      キーはこのブラウザ(localStorage)にのみ保存され、Anthropic API 以外には送信されません。
+      契約書ファイルも抽出のために Anthropic API へ直接送信されるのみで、他のサーバーには保存されません。
+    </div>
+  </div>
+
+  <div id="dropzone">
+    <div><strong>クリックしてファイルを選択</strong> するか、ここにドラッグ&ドロップ</div>
+    <div class="hint">PDF / PNG / JPEG / WebP / GIF / テキスト(複数可、1ファイル30MBまで)</div>
+    <input type="file" id="fileInput" multiple hidden
+           accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md">
+  </div>
+  <div id="queue"></div>
+
+  <div class="toolbar">
+    <h2>抽出結果 <span class="badge" id="count">0件</span></h2>
+    <button id="clearBtn">全件クリア</button>
+    <button id="csvBtn" class="primary">CSVダウンロード</button>
+  </div>
+  <div class="table-wrap">
+    <table id="resultTable">
+      <thead>
+        <tr>
+          <th>ファイル</th>
+          <th>契約書名</th>
+          <th>取引先</th>
+          <th>契約締結日</th>
+          <th>開始日</th>
+          <th>終了日</th>
+          <th>金額(税抜)</th>
+          <th>消費税</th>
+          <th>金額(税込)</th>
+          <th>支払形態</th>
+          <th>支払条件</th>
+          <th>勘定科目</th>
+          <th>摘要</th>
+          <th>備考</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty">まだ抽出結果がありません。契約書をアップロードしてください。</div>
+  </div>
+</main>
+
+<script>
+const MODEL = "claude-opus-4-8";
+const MAX_FILE_SIZE = 30 * 1024 * 1024;
+
+const EXTRACTION_SCHEMA = {
+  type: "object",
+  properties: {
+    contract_title: { type: "string", description: "契約書のタイトル(例: 業務委託契約書、賃貸借契約書)" },
+    counterparty: { type: "string", description: "取引先名(相手方の会社名・氏名)。自社と思われる当事者ではなく、支払先/請求元となる相手方を記載" },
+    our_party: { type: ["string", "null"], description: "自社と思われる当事者名。判別できなければnull" },
+    contract_date: { type: ["string", "null"], description: "契約締結日 (YYYY-MM-DD)。不明ならnull" },
+    start_date: { type: ["string", "null"], description: "契約期間の開始日 (YYYY-MM-DD)。不明ならnull" },
+    end_date: { type: ["string", "null"], description: "契約期間の終了日 (YYYY-MM-DD)。自動更新等で定めがなければnull" },
+    amount_excl_tax: { type: ["number", "null"], description: "契約金額(税抜、円)。数値のみ。不明ならnull" },
+    tax_amount: { type: ["number", "null"], description: "消費税額(円)。記載がなく計算もできなければnull" },
+    amount_incl_tax: { type: ["number", "null"], description: "契約金額(税込、円)。税抜額と消費税から計算できる場合は計算する" },
+    payment_frequency: { type: "string", enum: ["一括", "月額", "年額", "分割", "その他", "不明"], description: "支払形態" },
+    payment_terms: { type: ["string", "null"], description: "支払条件(例: 月末締め翌月末払い、銀行振込)。不明ならnull" },
+    account_title: { type: "string", description: "推奨される勘定科目。契約内容から最も適切なものを選ぶ(例: 外注費、業務委託費、支払手数料、地代家賃、賃借料、リース料、保険料、通信費、広告宣伝費、顧問料、修繕費、保守料、ソフトウェア、前払費用)" },
+    account_title_reason: { type: "string", description: "その勘定科目を選んだ理由(1文で簡潔に)" },
+    summary: { type: "string", description: "契約内容の要約(摘要欄に使える50字程度の簡潔な説明)" },
+    confidence_notes: { type: ["string", "null"], description: "抽出に不確実な点があれば注意書き(例: 金額が複数記載、日付が不鮮明)。なければnull" },
+  },
+  required: [
+    "contract_title", "counterparty", "our_party", "contract_date", "start_date",
+    "end_date", "amount_excl_tax", "tax_amount", "amount_incl_tax",
+    "payment_frequency", "payment_terms", "account_title", "account_title_reason",
+    "summary", "confidence_notes",
+  ],
+  additionalProperties: false,
+};
+
+const SYSTEM_PROMPT = `あなたは日本の経理実務に詳しい契約書レビューアシスタントです。
+アップロードされた契約書から経理処理に必要な情報を正確に抽出します。
+
+ルール:
+- 書面に実際に記載されている情報のみを抽出し、推測で値を作らない(勘定科目の推奨は例外)
+- 金額は数値(円)で返す。カンマや「円」は含めない
+- 複数の金額がある場合は契約の主たる対価を採用し、confidence_notesに補足を書く
+- 日付は和暦でもYYYY-MM-DDに変換する
+- 勘定科目は日本の一般的な中小企業の勘定科目体系から契約の実態に即して選ぶ`;
+
+const COLUMNS = [
+  { key: "filename",        label: "ファイル",     editable: false, cls: "file" },
+  { key: "contract_title",  label: "契約書名",     editable: true },
+  { key: "counterparty",    label: "取引先",       editable: true },
+  { key: "contract_date",   label: "契約締結日",   editable: true },
+  { key: "start_date",      label: "開始日",       editable: true },
+  { key: "end_date",        label: "終了日",       editable: true },
+  { key: "amount_excl_tax", label: "金額(税抜)",  editable: true, cls: "num", num: true },
+  { key: "tax_amount",      label: "消費税",       editable: true, cls: "num", num: true },
+  { key: "amount_incl_tax", label: "金額(税込)",  editable: true, cls: "num", num: true },
+  { key: "payment_frequency", label: "支払形態",   editable: true },
+  { key: "payment_terms",   label: "支払条件",     editable: true },
+  { key: "account_title",   label: "勘定科目",     editable: true },
+  { key: "summary",         label: "摘要",         editable: true },
+  { key: "confidence_notes", label: "備考",        editable: true, cls: "note" },
+];
+
+// ---- APIキー管理(localStorageのみ) ----
+const keyInput = document.getElementById("apiKey");
+keyInput.value = localStorage.getItem("anthropic_api_key") || "";
+keyInput.addEventListener("change", () => {
+  localStorage.setItem("anthropic_api_key", keyInput.value.trim());
+});
+document.getElementById("keyClear").addEventListener("click", () => {
+  localStorage.removeItem("anthropic_api_key");
+  keyInput.value = "";
+});
+
+// ---- ファイル → コンテンツブロック ----
+function readAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",", 2)[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+function readAsText(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = reject;
+    r.readAsText(file);
+  });
+}
+
+async function fileToContentBlock(file) {
+  const mime = file.type;
+  if (mime === "application/pdf") {
+    return {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: await readAsBase64(file) },
+    };
+  }
+  if (["image/png", "image/jpeg", "image/gif", "image/webp"].includes(mime)) {
+    return {
+      type: "image",
+      source: { type: "base64", media_type: mime, data: await readAsBase64(file) },
+    };
+  }
+  if (mime === "text/plain" || /\.(txt|md)$/i.test(file.name)) {
+    return {
+      type: "document",
+      source: { type: "text", media_type: "text/plain", data: await readAsText(file) },
+    };
+  }
+  return null;
+}
+
+// ---- Claude API 呼び出し(ブラウザから直接) ----
+async function extract(file) {
+  const apiKey = (localStorage.getItem("anthropic_api_key") || "").trim();
+  if (!apiKey) throw new Error("APIキーを入力してください(上の入力欄)");
+  if (file.size > MAX_FILE_SIZE) throw new Error("ファイルサイズが上限(30MB)を超えています");
+
+  const block = await fileToContentBlock(file);
+  if (!block) throw new Error(`未対応のファイル形式です: ${file.type || file.name}`);
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      output_config: { format: { type: "json_schema", schema: EXTRACTION_SCHEMA } },
+      messages: [
+        {
+          role: "user",
+          content: [
+            block,
+            { type: "text", text: "この契約書から経理処理に必要な情報を抽出してください。" },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!resp.ok) {
+    let detail = `HTTP ${resp.status}`;
+    try {
+      const body = await resp.json();
+      detail = body?.error?.message || detail;
+    } catch {}
+    if (resp.status === 401) throw new Error("APIキーが無効です: " + detail);
+    if (resp.status === 429) throw new Error("レート制限に達しました。少し待って再試行してください");
+    throw new Error("Claude APIエラー: " + detail);
+  }
+
+  const message = await resp.json();
+  if (message.stop_reason === "refusal") {
+    throw new Error("この文書は処理できませんでした(安全上の理由)");
+  }
+  if (message.stop_reason === "max_tokens") {
+    throw new Error("出力が長すぎて途中で切れました。再試行してください");
+  }
+  const text = (message.content || []).find((b) => b.type === "text")?.text;
+  if (!text) throw new Error("抽出結果を取得できませんでした");
+  return JSON.parse(text);
+}
+
+// ---- UI ----
+const rows = [];
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const queue = document.getElementById("queue");
+const tbody = document.getElementById("tbody");
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropzone.classList.add("dragover");
+});
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("dragover");
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener("change", () => {
+  handleFiles(fileInput.files);
+  fileInput.value = "";
+});
+
+function handleFiles(fileList) {
+  for (const file of fileList) processFile(file);
+}
+
+async function processFile(file) {
+  const job = document.createElement("div");
+  job.className = "job";
+  job.innerHTML = `<div class="spinner"></div><div class="name"></div><div class="status">抽出中…</div>`;
+  job.querySelector(".name").textContent = file.name;
+  queue.prepend(job);
+
+  try {
+    const data = await extract(file);
+    addRow({ filename: file.name, ...data });
+    job.classList.add("done");
+    job.querySelector(".spinner").remove();
+    job.querySelector(".status").textContent = "完了";
+    setTimeout(() => job.remove(), 4000);
+  } catch (err) {
+    job.classList.add("error");
+    job.querySelector(".spinner").remove();
+    job.querySelector(".status").textContent = "失敗: " + err.message;
+  }
+}
+
+function addRow(data) {
+  rows.push(data);
+  render();
+}
+
+function render() {
+  tbody.innerHTML = "";
+  document.getElementById("empty").style.display = rows.length ? "none" : "block";
+  document.getElementById("count").textContent = rows.length + "件";
+
+  rows.forEach((row, i) => {
+    const tr = document.createElement("tr");
+    for (const col of COLUMNS) {
+      const td = document.createElement("td");
+      if (col.cls) td.className = col.cls;
+      let v = row[col.key];
+      if (v === null || v === undefined) v = "";
+      td.textContent = col.num && v !== "" ? Number(v).toLocaleString("ja-JP") : v;
+      if (col.editable) {
+        td.contentEditable = "plaintext-only";
+        td.addEventListener("blur", () => {
+          const text = td.textContent.trim();
+          if (col.num) {
+            const n = Number(text.replace(/[,、円\s]/g, ""));
+            row[col.key] = text === "" || isNaN(n) ? null : n;
+            td.textContent = row[col.key] === null ? "" : row[col.key].toLocaleString("ja-JP");
+          } else {
+            row[col.key] = text || null;
+          }
+        });
+      }
+      tr.appendChild(td);
+    }
+    const tdDel = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "del";
+    btn.textContent = "✕";
+    btn.title = "この行を削除";
+    btn.addEventListener("click", () => { rows.splice(i, 1); render(); });
+    tdDel.appendChild(btn);
+    tr.appendChild(tdDel);
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  if (rows.length && confirm("抽出結果をすべて削除しますか?")) {
+    rows.length = 0;
+    render();
+  }
+});
+
+document.getElementById("csvBtn").addEventListener("click", () => {
+  if (!rows.length) { alert("出力する行がありません"); return; }
+  const esc = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const header = COLUMNS.map((c) => c.label).join(",");
+  const lines = rows.map((r) => COLUMNS.map((c) => esc(r[c.key])).join(","));
+  // Excelで文字化けしないようUTF-8 BOM付き
+  const blob = new Blob(["﻿" + [header, ...lines].join("\r\n")], {
+    type: "text/csv;charset=utf-8",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const d = new Date();
+  a.download = `契約書一覧_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+render();
+</script>
+</body>
+</html>
