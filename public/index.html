@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>契約書アブストラクター</title>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --card: #ffffff;
+    --ink: #1f2933;
+    --sub: #6b7280;
+    --accent: #b45f3c;
+    --accent-dark: #96492c;
+    --line: #e3e0d8;
+    --ok: #2e7d52;
+    --err: #b3403a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header {
+    padding: 28px 32px 8px;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: 0.02em;
+  }
+  header p {
+    margin: 6px 0 0;
+    color: var(--sub);
+    font-size: 13px;
+  }
+  main { padding: 20px 32px 60px; max-width: 1400px; margin: 0 auto; }
+
+  #dropzone {
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    background: var(--card);
+    padding: 36px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #dropzone.dragover { border-color: var(--accent); background: #fdf8f4; }
+  #dropzone strong { color: var(--accent); }
+  #dropzone .hint { color: var(--sub); font-size: 12px; margin-top: 8px; }
+
+  #queue { margin: 14px 0 0; display: flex; flex-direction: column; gap: 6px; }
+  .job {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 14px; font-size: 13px;
+  }
+  .job .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job .status { color: var(--sub); }
+  .job.done .status { color: var(--ok); }
+  .job.error .status { color: var(--err); }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid var(--line);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .8s linear infinite; flex: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin: 28px 0 12px;
+  }
+  .toolbar h2 { margin: 0; font-size: 16px; flex: 1; }
+  button {
+    font: inherit; font-size: 13px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--ink);
+    padding: 8px 16px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  button.primary:hover { background: var(--accent-dark); }
+  button:disabled { opacity: .45; cursor: default; }
+
+  .table-wrap {
+    overflow-x: auto;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 1250px; }
+  th, td {
+    border-bottom: 1px solid var(--line);
+    padding: 9px 10px; text-align: left; vertical-align: top;
+  }
+  th {
+    background: #faf9f6; font-weight: 600; font-size: 12px;
+    color: var(--sub); white-space: nowrap; position: sticky; top: 0;
+  }
+  td[contenteditable] { min-width: 90px; }
+  td[contenteditable]:focus {
+    outline: 2px solid var(--accent); outline-offset: -2px;
+    background: #fdf8f4;
+  }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.file { color: var(--sub); font-size: 12px; max-width: 140px; word-break: break-all; }
+  td.note { color: var(--sub); font-size: 12px; max-width: 200px; }
+  .del {
+    border: none; background: none; color: var(--sub);
+    cursor: pointer; font-size: 15px; padding: 2px 6px;
+  }
+  .del:hover { color: var(--err); }
+  #empty {
+    text-align: center; color: var(--sub); padding: 40px; font-size: 13px;
+  }
+  .badge {
+    display: inline-block; background: #f0ece4; border-radius: 6px;
+    padding: 2px 8px; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>契約書アブストラクター</h1>
+  <p>契約書(PDF・画像・テキスト)をアップロードすると、金額・取引先・勘定科目などを自動抽出して一覧化します。セルは直接編集でき、CSVでダウンロードできます。</p>
+</header>
+<main>
+  <div id="dropzone">
+    <div><strong>クリックしてファイルを選択</strong> するか、ここにドラッグ&ドロップ</div>
+    <div class="hint">PDF / PNG / JPEG / WebP / GIF / テキスト(複数可、1ファイル30MBまで)</div>
+    <input type="file" id="fileInput" multiple hidden
+           accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md">
+  </div>
+  <div id="queue"></div>
+
+  <div class="toolbar">
+    <h2>抽出結果 <span class="badge" id="count">0件</span></h2>
+    <button id="clearBtn">全件クリア</button>
+    <button id="csvBtn" class="primary">CSVダウンロード</button>
+  </div>
+  <div class="table-wrap">
+    <table id="resultTable">
+      <thead>
+        <tr>
+          <th>ファイル</th>
+          <th>契約書名</th>
+          <th>取引先</th>
+          <th>契約締結日</th>
+          <th>開始日</th>
+          <th>終了日</th>
+          <th>金額(税抜)</th>
+          <th>消費税</th>
+          <th>金額(税込)</th>
+          <th>支払形態</th>
+          <th>支払条件</th>
+          <th>勘定科目</th>
+          <th>摘要</th>
+          <th>備考</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty">まだ抽出結果がありません。契約書をアップロードしてください。</div>
+  </div>
+</main>
+
+<script>
+const COLUMNS = [
+  { key: "filename",       label: "ファイル",     editable: false, cls: "file" },
+  { key: "contract_title", label: "契約書名",     editable: true },
+  { key: "counterparty",   label: "取引先",       editable: true },
+  { key: "contract_date",  label: "契約締結日",   editable: true },
+  { key: "start_date",     label: "開始日",       editable: true },
+  { key: "end_date",       label: "終了日",       editable: true },
+  { key: "amount_excl_tax",label: "金額(税抜)",  editable: true, cls: "num", num: true },
+  { key: "tax_amount",     label: "消費税",       editable: true, cls: "num", num: true },
+  { key: "amount_incl_tax",label: "金額(税込)",  editable: true, cls: "num", num: true },
+  { key: "payment_frequency", label: "支払形態",  editable: true },
+  { key: "payment_terms",  label: "支払条件",     editable: true },
+  { key: "account_title",  label: "勘定科目",     editable: true },
+  { key: "summary",        label: "摘要",         editable: true },
+  { key: "confidence_notes", label: "備考",       editable: true, cls: "note" },
+];
+
+const rows = [];
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const queue = document.getElementById("queue");
+const tbody = document.getElementById("tbody");
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropzone.classList.add("dragover");
+});
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("dragover");
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener("change", () => {
+  handleFiles(fileInput.files);
+  fileInput.value = "";
+});
+
+function handleFiles(fileList) {
+  for (const file of fileList) uploadFile(file);
+}
+
+async function uploadFile(file) {
+  const job = document.createElement("div");
+  job.className = "job";
+  job.innerHTML = `<div class="spinner"></div><div class="name"></div><div class="status">抽出中…</div>`;
+  job.querySelector(".name").textContent = file.name;
+  queue.prepend(job);
+
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const resp = await fetch("/api/extract", { method: "POST", body: form });
+    const body = await resp.json();
+    if (!resp.ok) throw new Error(body.error || `HTTP ${resp.status}`);
+    addRow({ filename: body.filename, ...body.data });
+    job.classList.add("done");
+    job.querySelector(".spinner").remove();
+    job.querySelector(".status").textContent = "完了";
+    setTimeout(() => job.remove(), 4000);
+  } catch (err) {
+    job.classList.add("error");
+    job.querySelector(".spinner").remove();
+    job.querySelector(".status").textContent = "失敗: " + err.message;
+  }
+}
+
+function addRow(data) {
+  rows.push(data);
+  render();
+}
+
+function render() {
+  tbody.innerHTML = "";
+  document.getElementById("empty").style.display = rows.length ? "none" : "block";
+  document.getElementById("count").textContent = rows.length + "件";
+
+  rows.forEach((row, i) => {
+    const tr = document.createElement("tr");
+    for (const col of COLUMNS) {
+      const td = document.createElement("td");
+      if (col.cls) td.className = col.cls;
+      let v = row[col.key];
+      if (v === null || v === undefined) v = "";
+      td.textContent = col.num && v !== "" ? Number(v).toLocaleString("ja-JP") : v;
+      if (col.editable) {
+        td.contentEditable = "plaintext-only";
+        td.addEventListener("blur", () => {
+          const text = td.textContent.trim();
+          if (col.num) {
+            const n = Number(text.replace(/[,、円\s]/g, ""));
+            row[col.key] = text === "" || isNaN(n) ? null : n;
+            td.textContent = row[col.key] === null ? "" : row[col.key].toLocaleString("ja-JP");
+          } else {
+            row[col.key] = text || null;
+          }
+        });
+      }
+      tr.appendChild(td);
+    }
+    const tdDel = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "del";
+    btn.textContent = "✕";
+    btn.title = "この行を削除";
+    btn.addEventListener("click", () => { rows.splice(i, 1); render(); });
+    tdDel.appendChild(btn);
+    tr.appendChild(tdDel);
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  if (rows.length && confirm("抽出結果をすべて削除しますか?")) {
+    rows.length = 0;
+    render();
+  }
+});
+
+document.getElementById("csvBtn").addEventListener("click", () => {
+  if (!rows.length) { alert("出力する行がありません"); return; }
+  const esc = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const header = COLUMNS.map((c) => c.label).join(",");
+  const lines = rows.map((r) => COLUMNS.map((c) => esc(r[c.key])).join(","));
+  // Excelで文字化けしないようUTF-8 BOM付き
+  const blob = new Blob(["﻿" + [header, ...lines].join("\r\n")], {
+    type: "text/csv;charset=utf-8",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const d = new Date();
+  a.download = `契約書一覧_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+render();
+</script>
+</body>
+</html>
