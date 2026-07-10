@@ -49,6 +49,35 @@
   #keyStatus.none { color: var(--err); }
   main { padding: 20px 32px 60px; max-width: 1400px; margin: 0 auto; }
 
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .tab {
+    border: none; background: none; border-radius: 0;
+    padding: 10px 18px; font-size: 14px; color: var(--sub);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
+  }
+  .tab:hover { color: var(--accent); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .fmt-help { font-size: 13px; color: var(--sub); margin: 0 0 14px; line-height: 1.8; }
+  #formatList { display: flex; flex-direction: column; gap: 12px; max-width: 860px; margin-bottom: 14px; }
+  .format-item {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 16px; font-size: 13px;
+  }
+  .format-item.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .format-item input[type="radio"] { margin-top: 4px; accent-color: var(--accent); }
+  .format-item .fmt-desc { color: var(--sub); font-size: 12px; margin-top: 4px; line-height: 1.7; }
+  .fmt-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .fmt-name { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  .fmt-body textarea {
+    font: inherit; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; min-height: 140px; resize: vertical; line-height: 1.8;
+  }
+  .fmt-name:focus, .fmt-body textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .fmt-del { color: var(--sub); }
+  .fmt-del:hover { color: var(--err); border-color: var(--err); }
+
   #dropzone {
     border: 2px dashed var(--line);
     border-radius: 12px;
@@ -202,6 +231,21 @@
 </dialog>
 
 <main>
+  <div class="tabs">
+    <button class="tab active" data-panel="extract">契約書読み込み</button>
+    <button class="tab" data-panel="formats">フォーマット設定</button>
+  </div>
+
+  <div id="panel-formats" style="display: none">
+    <p class="fmt-help">
+      抽出したい項目を自由に定義できます。「+ フォーマットを追加」で入力欄を作り、抽出したい項目を書いてください(1行に1項目がおすすめ)。
+      選択中のフォーマットに基づいて、「契約書読み込み」タブでの抽出結果が整理されます。フォーマットはこのブラウザに保存されます。
+    </p>
+    <div id="formatList"></div>
+    <button id="addFormatBtn" class="primary">+ フォーマットを追加</button>
+  </div>
+
+  <div id="panel-extract">
   <div id="dropzone">
     <div><strong>クリックしてファイルを選択</strong> するか、ここにドラッグ&ドロップ</div>
     <div class="hint">PDF / PNG / JPEG / WebP / GIF / テキスト(複数可、1ファイル30MBまで)</div>
@@ -239,12 +283,13 @@
   <div id="queue"></div>
 
   <div class="toolbar">
-    <h2>抽出結果 <span class="badge" id="count">0件</span></h2>
+    <h2>抽出結果 <span class="badge" id="count">0件</span> <span class="badge" id="formatBadge"></span></h2>
     <button id="clearBtn">全件クリア</button>
     <button id="csvBtn" class="primary">CSVダウンロード</button>
   </div>
   <div id="cards"></div>
   <div id="empty">まだ抽出結果がありません。契約書をアップロードしてください。</div>
+  </div><!-- /panel-extract -->
 </main>
 
 <script>
@@ -276,6 +321,28 @@ const EXTRACTION_SCHEMA = {
     "payment_frequency", "payment_terms", "account_title", "account_title_reason",
     "summary", "confidence_notes",
   ],
+  additionalProperties: false,
+};
+
+// カスタムフォーマット用: 項目名と値のペアの配列で返させる
+const ITEMS_SCHEMA = {
+  type: "object",
+  properties: {
+    items: {
+      type: "array",
+      description: "フォーマットに定義された項目を、定義された順に並べた配列",
+      items: {
+        type: "object",
+        properties: {
+          label: { type: "string", description: "フォーマットに書かれた項目名(原文のまま)" },
+          value: { type: ["string", "null"], description: "契約書から読み取った値。書面から読み取れない場合はnull" },
+        },
+        required: ["label", "value"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["items"],
   additionalProperties: false,
 };
 
@@ -355,6 +422,132 @@ if (!(localStorage.getItem("anthropic_api_key") || "").trim()) {
   settings.showModal();
 }
 
+// ---- タブ切り替え ----
+document.querySelectorAll(".tab").forEach((t) => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+    document.getElementById("panel-extract").style.display = t.dataset.panel === "extract" ? "" : "none";
+    document.getElementById("panel-formats").style.display = t.dataset.panel === "formats" ? "" : "none";
+  });
+});
+
+// ---- フォーマット管理(localStorageに保存) ----
+function loadFormats() {
+  try { return JSON.parse(localStorage.getItem("formats") || "[]"); } catch { return []; }
+}
+function saveFormats(formats) {
+  localStorage.setItem("formats", JSON.stringify(formats));
+}
+function activeFormatId() {
+  return localStorage.getItem("active_format") || "default";
+}
+function activeFormat() {
+  const id = activeFormatId();
+  if (id === "default") return null;
+  return loadFormats().find((f) => f.id === id) || null;
+}
+function setActiveFormat(id) {
+  localStorage.setItem("active_format", id);
+  renderFormats();
+  updateFormatBadge();
+}
+function formatDisplayName(f, idx) {
+  return f.name || `カスタムフォーマット${idx + 1}`;
+}
+function updateFormatBadge() {
+  const formats = loadFormats();
+  const f = activeFormat();
+  const idx = f ? formats.findIndex((x) => x.id === f.id) : -1;
+  document.getElementById("formatBadge").textContent =
+    "フォーマット: " + (f ? formatDisplayName(f, idx) : "デフォルト");
+}
+
+function renderFormats() {
+  const list = document.getElementById("formatList");
+  const formats = loadFormats();
+  const active = activeFormatId();
+  list.innerHTML = "";
+
+  // デフォルトフォーマット
+  const defRow = document.createElement("label");
+  defRow.className = "format-item" + (active === "default" ? " selected" : "");
+  const defRadio = document.createElement("input");
+  defRadio.type = "radio";
+  defRadio.name = "fmt";
+  defRadio.checked = active === "default";
+  defRadio.addEventListener("change", () => setActiveFormat("default"));
+  const defBody = document.createElement("div");
+  defBody.innerHTML =
+    "<strong>デフォルトフォーマット</strong><div class='fmt-desc'>契約書名 / 取引先 / 契約締結日 / 開始日 / 終了日 / 金額(税抜) / 消費税 / 金額(税込) / 支払形態 / 支払条件 / 勘定科目 / 摘要 / 備考 の13項目</div>";
+  defRow.appendChild(defRadio);
+  defRow.appendChild(defBody);
+  list.appendChild(defRow);
+
+  // カスタムフォーマット
+  formats.forEach((f, idx) => {
+    const card = document.createElement("div");
+    card.className = "format-item" + (active === f.id ? " selected" : "");
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "fmt";
+    radio.title = "このフォーマットを使う";
+    radio.checked = active === f.id;
+    radio.addEventListener("change", () => setActiveFormat(f.id));
+
+    const body = document.createElement("div");
+    body.className = "fmt-body";
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "fmt-name";
+    nameInput.placeholder = `フォーマット名(例: 経理提出用)`;
+    nameInput.value = f.name || "";
+    nameInput.addEventListener("change", () => {
+      f.name = nameInput.value.trim();
+      saveFormats(formats);
+      updateFormatBadge();
+    });
+    const ta = document.createElement("textarea");
+    ta.placeholder = "抽出したい項目を書いてください(1行に1項目)。\n例:\n取引先名\n契約金額(税込)\n支払サイト\n解約予告期間\n自動更新の有無\n担当部署への確認事項";
+    ta.value = f.text || "";
+    ta.addEventListener("change", () => {
+      f.text = ta.value;
+      saveFormats(formats);
+    });
+    body.appendChild(nameInput);
+    body.appendChild(ta);
+
+    const del = document.createElement("button");
+    del.className = "fmt-del";
+    del.textContent = "削除";
+    del.addEventListener("click", () => {
+      if (!confirm(`「${formatDisplayName(f, idx)}」を削除しますか?`)) return;
+      formats.splice(idx, 1);
+      saveFormats(formats);
+      if (activeFormatId() === f.id) localStorage.setItem("active_format", "default");
+      renderFormats();
+      updateFormatBadge();
+    });
+
+    card.appendChild(radio);
+    card.appendChild(body);
+    card.appendChild(del);
+    list.appendChild(card);
+  });
+}
+
+document.getElementById("addFormatBtn").addEventListener("click", () => {
+  const formats = loadFormats();
+  const f = { id: "fmt_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: "", text: "" };
+  formats.push(f);
+  saveFormats(formats);
+  localStorage.setItem("active_format", f.id); // 追加したフォーマットを選択状態に
+  renderFormats();
+  updateFormatBadge();
+  const tas = document.querySelectorAll("#formatList textarea");
+  tas[tas.length - 1]?.focus();
+});
+
 // ---- ファイル → コンテンツブロック ----
 function readAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -408,6 +601,39 @@ async function extract(file) {
   const block = await fileToContentBlock(file);
   if (!block) throw new Error(`未対応のファイル形式です: ${file.type || file.name}`);
 
+  // 選択中のフォーマットに応じてリクエストを組み立てる
+  const fmt = activeFormat();
+  const custom = !!(fmt && (fmt.text || "").trim());
+  const request = {
+    model: MODEL,
+    max_tokens: 4096,
+    system: SYSTEM_PROMPT,
+    output_config: {
+      format: { type: "json_schema", schema: custom ? ITEMS_SCHEMA : EXTRACTION_SCHEMA },
+    },
+    messages: [
+      {
+        role: "user",
+        content: [
+          block,
+          {
+            type: "text",
+            text: custom
+              ? `次のフォーマット(抽出したい項目の定義)に従って、この契約書から情報を抽出してください。
+- フォーマットに書かれた各項目を、書かれた順番どおりにitemsとして返す
+- labelには項目名を原文のまま入れる
+- 書面から読み取れない項目のvalueはnullにする(推測で値を作らない)
+- 金額・日付などの表記ルールはフォーマット内の指示があればそれに従う
+
+【フォーマット】
+${fmt.text}`
+              : "この契約書から経理処理に必要な情報を抽出してください。",
+          },
+        ],
+      },
+    ],
+  };
+
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -416,21 +642,7 @@ async function extract(file) {
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      output_config: { format: { type: "json_schema", schema: EXTRACTION_SCHEMA } },
-      messages: [
-        {
-          role: "user",
-          content: [
-            block,
-            { type: "text", text: "この契約書から経理処理に必要な情報を抽出してください。" },
-          ],
-        },
-      ],
-    }),
+    body: JSON.stringify(request),
   });
 
   if (!resp.ok) {
@@ -453,7 +665,8 @@ async function extract(file) {
   }
   const text = (message.content || []).find((b) => b.type === "text")?.text;
   if (!text) throw new Error("抽出結果を取得できませんでした");
-  return JSON.parse(text);
+  const data = JSON.parse(text);
+  return custom ? { __items: data.items } : data;
 }
 
 // ---- UI ----
@@ -595,32 +808,50 @@ function render() {
 
     const kv = document.createElement("table");
     kv.className = "kv";
-    for (const col of COLUMNS) {
-      if (col.key === "filename") continue;
-      const tr = document.createElement("tr");
-      const th = document.createElement("th");
-      th.textContent = col.label;
-      const td = document.createElement("td");
-      if (col.cls) td.className = col.cls;
-      let v = row[col.key];
-      if (v === null || v === undefined) v = "";
-      td.textContent = col.num && v !== "" ? Number(v).toLocaleString("ja-JP") : v;
-      if (col.editable) {
+    if (row.__items) {
+      // カスタムフォーマットの結果: label/value ペアをそのまま縦に表示
+      row.__items.forEach((item) => {
+        const tr = document.createElement("tr");
+        const th = document.createElement("th");
+        th.textContent = item.label;
+        const td = document.createElement("td");
+        td.textContent = item.value === null || item.value === undefined ? "" : item.value;
         td.contentEditable = "plaintext-only";
         td.addEventListener("blur", () => {
-          const text = td.textContent.trim();
-          if (col.num) {
-            const n = Number(text.replace(/[,、円\s]/g, ""));
-            row[col.key] = text === "" || isNaN(n) ? null : n;
-            td.textContent = row[col.key] === null ? "" : row[col.key].toLocaleString("ja-JP");
-          } else {
-            row[col.key] = text || null;
-          }
+          item.value = td.textContent.trim() || null;
         });
+        tr.appendChild(th);
+        tr.appendChild(td);
+        kv.appendChild(tr);
+      });
+    } else {
+      for (const col of COLUMNS) {
+        if (col.key === "filename") continue;
+        const tr = document.createElement("tr");
+        const th = document.createElement("th");
+        th.textContent = col.label;
+        const td = document.createElement("td");
+        if (col.cls) td.className = col.cls;
+        let v = row[col.key];
+        if (v === null || v === undefined) v = "";
+        td.textContent = col.num && v !== "" ? Number(v).toLocaleString("ja-JP") : v;
+        if (col.editable) {
+          td.contentEditable = "plaintext-only";
+          td.addEventListener("blur", () => {
+            const text = td.textContent.trim();
+            if (col.num) {
+              const n = Number(text.replace(/[,、円\s]/g, ""));
+              row[col.key] = text === "" || isNaN(n) ? null : n;
+              td.textContent = row[col.key] === null ? "" : row[col.key].toLocaleString("ja-JP");
+            } else {
+              row[col.key] = text || null;
+            }
+          });
+        }
+        tr.appendChild(th);
+        tr.appendChild(td);
+        kv.appendChild(tr);
       }
-      tr.appendChild(th);
-      tr.appendChild(td);
-      kv.appendChild(tr);
     }
     card.appendChild(kv);
     cards.appendChild(card);
@@ -641,8 +872,26 @@ document.getElementById("csvBtn").addEventListener("click", () => {
     const s = String(v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
-  const header = COLUMNS.map((c) => c.label).join(",");
-  const lines = rows.map((r) => COLUMNS.map((c) => esc(r[c.key])).join(","));
+  // 列 = ファイル + 出現した項目の和集合(デフォルト/カスタム混在に対応)
+  const labels = [];
+  const seen = new Set();
+  const addLabel = (label) => { if (label && !seen.has(label)) { seen.add(label); labels.push(label); } };
+  addLabel("ファイル");
+  rows.forEach((r) => {
+    if (r.__items) r.__items.forEach((it) => addLabel(it.label));
+    else COLUMNS.forEach((c) => { if (c.key !== "filename") addLabel(c.label); });
+  });
+  const header = labels.join(",");
+  const lines = rows.map((r) =>
+    labels.map((label) => {
+      if (label === "ファイル") return esc(r.filename);
+      if (r.__items) {
+        const it = r.__items.find((x) => x.label === label);
+        return esc(it ? it.value : "");
+      }
+      const c = COLUMNS.find((x) => x.label === label);
+      return esc(c ? r[c.key] : "");
+    }).join(","));
   // Excelで文字化けしないようUTF-8 BOM付き
   const blob = new Blob(["﻿" + [header, ...lines].join("\r\n")], {
     type: "text/csv;charset=utf-8",
@@ -656,6 +905,8 @@ document.getElementById("csvBtn").addEventListener("click", () => {
 });
 
 render();
+renderFormats();
+updateFormatBadge();
 </script>
 </body>
 </html>

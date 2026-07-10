@@ -104,6 +104,34 @@ const EXTRACTION_SCHEMA = {
   additionalProperties: false,
 };
 
+// カスタムフォーマット用: 項目名と値のペアの配列で返させる
+const ITEMS_SCHEMA = {
+  type: "object",
+  properties: {
+    items: {
+      type: "array",
+      description: "フォーマットに定義された項目を、定義された順に並べた配列",
+      items: {
+        type: "object",
+        properties: {
+          label: {
+            type: "string",
+            description: "フォーマットに書かれた項目名(原文のまま)",
+          },
+          value: {
+            type: ["string", "null"],
+            description: "契約書から読み取った値。書面から読み取れない場合はnull",
+          },
+        },
+        required: ["label", "value"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["items"],
+  additionalProperties: false,
+};
+
 const SYSTEM_PROMPT = `あなたは日本の経理実務に詳しい契約書レビューアシスタントです。
 アップロードされた契約書から経理処理に必要な情報を正確に抽出します。
 
@@ -157,12 +185,19 @@ app.post("/api/extract", upload.single("file"), async (req, res) => {
       });
     }
 
+    // フォーマット指定があればカスタム抽出、なければデフォルト13項目
+    const formatText = (req.body?.format || "").trim();
+    const custom = !!formatText;
+
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       output_config: {
-        format: { type: "json_schema", schema: EXTRACTION_SCHEMA },
+        format: {
+          type: "json_schema",
+          schema: custom ? ITEMS_SCHEMA : EXTRACTION_SCHEMA,
+        },
       },
       messages: [
         {
@@ -171,7 +206,16 @@ app.post("/api/extract", upload.single("file"), async (req, res) => {
             block,
             {
               type: "text",
-              text: "この契約書から経理処理に必要な情報を抽出してください。",
+              text: custom
+                ? `次のフォーマット(抽出したい項目の定義)に従って、この契約書から情報を抽出してください。
+- フォーマットに書かれた各項目を、書かれた順番どおりにitemsとして返す
+- labelには項目名を原文のまま入れる
+- 書面から読み取れない項目のvalueはnullにする(推測で値を作らない)
+- 金額・日付などの表記ルールはフォーマット内の指示があればそれに従う
+
+【フォーマット】
+${formatText}`
+                : "この契約書から経理処理に必要な情報を抽出してください。",
             },
           ],
         },
@@ -194,7 +238,12 @@ app.post("/api/extract", upload.single("file"), async (req, res) => {
       return res.status(500).json({ error: "抽出結果を取得できませんでした" });
     }
 
-    res.json({ filename: req.file.originalname, data: JSON.parse(text) });
+    const parsed = JSON.parse(text);
+    if (custom) {
+      res.json({ filename: req.file.originalname, mode: "custom", items: parsed.items });
+    } else {
+      res.json({ filename: req.file.originalname, mode: "default", data: parsed });
+    }
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) {
       return res.status(500).json({
