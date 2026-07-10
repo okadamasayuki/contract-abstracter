@@ -26,8 +26,9 @@
   .sys-nav {
     background: #2c4f87; color: #cdd9ec;
     display: flex; gap: 2px; padding: 0 12px; font-size: 12px;
+    overflow-x: auto;
   }
-  .sys-nav span { padding: 7px 14px; }
+  .sys-nav span { padding: 7px 14px; white-space: nowrap; }
   .sys-nav span.on { background: #e9edf2; color: #1a3a6b; font-weight: bold; }
 
   main { max-width: 1080px; margin: 0 auto; padding: 16px 18px 60px; }
@@ -43,19 +44,65 @@
     padding: 7px 12px; font-weight: bold; color: #1a3a6b; font-size: 13px;
   }
   .panel-title .cnt { font-weight: normal; font-size: 12px; color: #555; }
-  .panel-title button { margin-left: auto; }
+  .panel-title .right { margin-left: auto; }
 
   button {
     font: inherit; font-size: 12px;
     border: 1px solid #8fa3bd; border-radius: 3px;
     background: linear-gradient(#fdfdfd, #e4e9f0);
-    color: #1a3a6b; padding: 4px 12px; cursor: pointer;
+    color: #1a3a6b; padding: 5px 14px; cursor: pointer;
   }
   button:hover { background: #eef2f7; }
-  button.approve { background: #1a6b3a; border-color: #1a6b3a; color: #fff; }
-  button.approve:hover { background: #14552e; }
-  button.reject { color: #a02020; border-color: #c08484; }
+  button.submit {
+    background: #1a3a6b; border-color: #1a3a6b; color: #fff;
+    font-size: 13px; font-weight: bold; padding: 8px 28px;
+  }
+  button.submit:hover { background: #143057; }
 
+  /* ---- 申請フォーム ---- */
+  .form-wrap {
+    background: #fff; border: 1px solid #b3c1d4;
+    padding: 18px 20px 22px; margin-bottom: 28px;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 10em 1fr;
+    gap: 0;
+    border-top: 1px solid #c8d2e0;
+  }
+  .form-grid > label {
+    background: #eef2f7; border: 1px solid #c8d2e0; border-top: none;
+    padding: 9px 10px; font-weight: bold; color: #1a3a6b; font-size: 12px;
+    display: flex; align-items: flex-start; gap: 4px;
+  }
+  .req { color: #c0392b; font-size: 10px; border: 1px solid #c0392b; border-radius: 2px; padding: 0 3px; }
+  .form-grid > div {
+    border: 1px solid #c8d2e0; border-top: none; border-left: none;
+    padding: 7px 10px; background: #fff;
+  }
+  input[type="text"], select, textarea {
+    font: inherit; font-size: 16px; /* スマホでの自動拡大防止 */
+    border: 1px solid #9db0c8; border-radius: 2px;
+    padding: 6px 8px; background: #fff; color: #222;
+  }
+  input[type="text"]:focus, select:focus, textarea:focus { outline: 2px solid #2c5faa; outline-offset: -1px; }
+  input.amount { width: 13em; text-align: right; font-variant-numeric: tabular-nums; }
+  .unit { margin-left: 4px; color: #555; }
+  .full { width: 100%; }
+  textarea#fBody {
+    width: 100%; min-height: 260px; resize: vertical; line-height: 1.8;
+  }
+  .hint { font-size: 11px; color: #777; margin-top: 4px; line-height: 1.7; }
+  .flow-note { font-size: 11px; color: #1a6b3a; margin-top: 4px; }
+
+  .file-list { font-size: 12px; margin-top: 6px; color: #333; }
+  .file-list li { margin-bottom: 2px; }
+
+  .form-actions {
+    display: flex; gap: 10px; justify-content: center; margin-top: 18px;
+  }
+
+  /* ---- 申請一覧 ---- */
   table.list {
     border-collapse: collapse; width: 100%;
     background: #fff; border: 1px solid #b3c1d4;
@@ -69,72 +116,16 @@
   .list td.r { text-align: right; white-space: nowrap; }
   .list td.c { text-align: center; white-space: nowrap; }
   .list tr:nth-child(even) td { background: #f7f9fc; }
-
   .status {
     display: inline-block; padding: 1px 8px; border-radius: 3px;
     font-size: 11px; white-space: nowrap;
+    background: #fff3cd; border: 1px solid #d8b94d; color: #6b5510;
   }
-  .status.wait { background: #fff3cd; border: 1px solid #d8b94d; color: #6b5510; }
-  .status.progress { background: #d9e7fb; border: 1px solid #7ba0d4; color: #1a3a6b; }
-  .status.done { background: #d9f2e2; border: 1px solid #5fa87c; color: #1a6b3a; }
-  .status.reject { background: #f6dcdc; border: 1px solid #c08484; color: #a02020; }
-
   #emptyMsg {
     background: #fff; border: 1px solid #b3c1d4; border-top: none;
-    padding: 40px; text-align: center; color: #777; font-size: 12px; line-height: 1.9;
+    padding: 30px; text-align: center; color: #777; font-size: 12px; line-height: 1.9;
   }
-
-  /* ---- 稟議書ダイアログ ---- */
-  dialog#detail {
-    border: 2px solid #1a3a6b; border-radius: 0;
-    width: min(860px, 95vw); max-height: 90vh;
-    padding: 0; overflow-y: auto;
-  }
-  dialog#detail::backdrop { background: rgba(20,30,50,.55); }
-  .ringi { padding: 26px 30px 30px; }
-  .ringi-head { display: flex; align-items: flex-start; }
-  .ringi-head h2 {
-    flex: 1; text-align: center; margin: 0 0 4px;
-    font-size: 20px; letter-spacing: .5em; color: #111;
-  }
-  .ringi-meta { font-size: 12px; text-align: right; color: #333; line-height: 1.9; white-space: nowrap; }
-  .ringi-note { text-align: center; font-size: 11px; color: #777; margin-bottom: 14px; }
-
-  /* 承認欄 */
-  .approvals { display: flex; justify-content: flex-end; gap: 0; margin: 10px 0 16px; }
-  .approval-box {
-    width: 86px; border: 1px solid #333; border-left: none;
-    text-align: center; font-size: 11px;
-  }
-  .approval-box:first-child { border-left: 1px solid #333; }
-  .approval-box .role { border-bottom: 1px solid #333; background: #eef2f7; padding: 3px 0; }
-  .approval-box .seal { height: 74px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px; }
-  .hanko {
-    width: 44px; height: 44px; border: 2px solid #c0392b; border-radius: 50%;
-    color: #c0392b; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: bold; transform: rotate(-4deg);
-  }
-  .seal .when { font-size: 9px; color: #777; }
-
-  table.form { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
-  .form th {
-    border: 1px solid #333; background: #eef2f7; color: #111;
-    width: 10em; padding: 8px 10px; text-align: left; font-weight: bold;
-    vertical-align: top; white-space: nowrap;
-  }
-  .form td { border: 1px solid #333; padding: 8px 10px; }
-  .form td.amount { font-size: 15px; font-weight: bold; }
-
-  details.raw { margin-top: 14px; font-size: 12px; }
-  details.raw summary { cursor: pointer; color: #1a3a6b; }
-  .raw table { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 12px; }
-  .raw th, .raw td { border: 1px solid #c8d2e0; padding: 4px 8px; text-align: left; }
-  .raw th { background: #eef2f7; width: 12em; font-weight: normal; color: #555; }
-
-  .ringi-actions {
-    display: flex; gap: 8px; justify-content: flex-end;
-    margin-top: 18px; padding-top: 14px; border-top: 1px dashed #999;
-  }
+  .table-scroll { overflow-x: auto; }
 </style>
 </head>
 <body>
@@ -149,56 +140,169 @@
 <main>
   <div class="flash" id="flash"></div>
 
+  <div class="panel-title">契約決裁 &gt; 新規申請</div>
+  <div class="form-wrap">
+    <div class="form-grid">
+      <label for="fTitle">件名 <span class="req">必須</span></label>
+      <div><input type="text" id="fTitle" class="full" placeholder="例: 〇〇契約の締結について"></div>
+
+      <label for="fAmountEx">金額(税抜)</label>
+      <div>
+        <input type="text" id="fAmountEx" class="amount" inputmode="numeric" placeholder="0"><span class="unit">円</span>
+      </div>
+
+      <label for="fAmountInc">金額(税込) <span class="req">必須</span></label>
+      <div>
+        <input type="text" id="fAmountInc" class="amount" inputmode="numeric" placeholder="0"><span class="unit">円</span>
+        <div class="hint">税込金額に応じて決裁フローの推奨が自動で切り替わります。</div>
+      </div>
+
+      <label for="fFlow">決裁フロー <span class="req">必須</span></label>
+      <div>
+        <select id="fFlow">
+          <option value="minor">少額決裁(課長専決)〜100万円未満</option>
+          <option value="standard">標準決裁(課長 → 部長)〜1,000万円未満</option>
+          <option value="major">重要決裁(課長 → 部長 → 社長)1,000万円以上</option>
+        </select>
+        <div class="flow-note" id="flowNote"></div>
+      </div>
+
+      <label for="fApprover">決裁権者 <span class="req">必須</span></label>
+      <div>
+        <select id="fApprover">
+          <option>村瀬 一郎(総務課長)</option>
+          <option>石田 桂子(総務部長)</option>
+          <option>小林 徹(経理部長)</option>
+          <option>大空 剛(代表取締役社長)</option>
+        </select>
+      </div>
+
+      <label for="fBody">申請内容<br>(自由記入) <span class="req">必須</span></label>
+      <div>
+        <textarea id="fBody" placeholder="申請の目的、契約の概要、金額の根拠、選定理由などを記入してください。"></textarea>
+        <div class="hint">契約書アブストラクターから転記すると、抽出内容がここに自動で書き込まれます。</div>
+      </div>
+
+      <label for="fFiles">添付ファイル</label>
+      <div>
+        <input type="file" id="fFiles" multiple>
+        <div class="hint" id="attachHint">契約書ドラフト、見積書等を添付してください。</div>
+        <ul class="file-list" id="fileList"></ul>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="submit" id="submitBtn">この内容で申請する</button>
+      <button id="resetBtn">クリア</button>
+    </div>
+  </div>
+
   <div class="panel-title">
     契約決裁 &gt; 申請一覧
     <span class="cnt" id="count">0件</span>
-    <button id="clearBtn">全件クリア(デモ用)</button>
+    <button class="right" id="clearBtn">全件クリア(デモ用)</button>
   </div>
-  <table class="list" id="listTable">
-    <thead>
-      <tr>
-        <th>決裁番号</th><th>申請日</th><th>件名</th><th>相手先</th>
-        <th>決裁金額(税込)</th><th>ステータス</th><th>操作</th>
-      </tr>
-    </thead>
-    <tbody id="listBody"></tbody>
-  </table>
+  <div class="table-scroll">
+    <table class="list" id="listTable">
+      <thead>
+        <tr>
+          <th>決裁番号</th><th>申請日</th><th>件名</th>
+          <th>金額(税抜)</th><th>金額(税込)</th>
+          <th>決裁フロー</th><th>決裁権者</th><th>添付</th><th>ステータス</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
   <div id="emptyMsg">
     申請はありません。<br>
-    契約書アブストラクターの「転記」ボタンから契約データを送ると、ここに決裁申請として起票されます。
+    上のフォームから申請するか、契約書アブストラクターの「転記」ボタンで契約データを送るとフォームに自動転記されます。
   </div>
 </main>
 
-<dialog id="detail">
-  <div class="ringi" id="ringiBody"></div>
-</dialog>
-
 <script>
-const KEY = "kessai_apps";
-const ROUTE = ["申請", "課長", "部長", "経理部長"];
-const SEALS = { "申請": "青田", "課長": "村瀬", "部長": "石田", "経理部長": "小林" };
+const KEY = "kessai_apps_v2";
+const FLOW_LABEL = {
+  minor: "少額決裁(課長専決)",
+  standard: "標準決裁(課長→部長)",
+  major: "重要決裁(課長→部長→社長)",
+};
+const FLOW_APPROVER = {
+  minor: "村瀬 一郎(総務課長)",
+  standard: "石田 桂子(総務部長)",
+  major: "大空 剛(代表取締役社長)",
+};
 
 function load() {
   try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
 }
 function save(apps) { localStorage.setItem(KEY, JSON.stringify(apps)); }
-
 function pad(n, w) { return String(n).padStart(w, "0"); }
 function fmtDate(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return "";
   return `${d.getFullYear()}/${pad(d.getMonth() + 1, 2)}/${pad(d.getDate(), 2)}`;
 }
-function yen(v) {
-  if (v === null || v === undefined || v === "") return "";
+function toNumber(v) {
+  if (v === null || v === undefined || v === "") return null;
   const n = Number(String(v).replace(/[,、円\s]/g, ""));
-  if (!isNaN(n) && String(v).match(/[0-9]/)) return n.toLocaleString("ja-JP") + " 円";
-  return String(v);
+  return isNaN(n) ? null : n;
+}
+function yen(v) {
+  const n = toNumber(v);
+  return n === null ? "" : n.toLocaleString("ja-JP");
 }
 
-// ---- 転記データ(アブストラクター形式)→ 決裁申請フォーマットへのマッピング ----
-function mapPayload(p) {
-  const fields = Array.isArray(p.fields) ? p.fields : [];
+// ---- フォーム要素 ----
+const fTitle = document.getElementById("fTitle");
+const fAmountEx = document.getElementById("fAmountEx");
+const fAmountInc = document.getElementById("fAmountInc");
+const fFlow = document.getElementById("fFlow");
+const fApprover = document.getElementById("fApprover");
+const fBody = document.getElementById("fBody");
+const fFiles = document.getElementById("fFiles");
+const fileList = document.getElementById("fileList");
+
+// 税込金額から決裁フロー・決裁権者を推奨
+function suggestFlow() {
+  const n = toNumber(fAmountInc.value);
+  if (n === null) return;
+  const flow = n >= 10000000 ? "major" : n >= 1000000 ? "standard" : "minor";
+  fFlow.value = flow;
+  fApprover.value = FLOW_APPROVER[flow];
+  document.getElementById("flowNote").textContent =
+    `※ 税込金額から「${FLOW_LABEL[flow]}」を自動選択しました(変更可)`;
+}
+fAmountInc.addEventListener("change", () => {
+  const n = toNumber(fAmountInc.value);
+  fAmountInc.value = n === null ? "" : n.toLocaleString("ja-JP");
+  suggestFlow();
+});
+fAmountEx.addEventListener("change", () => {
+  const n = toNumber(fAmountEx.value);
+  fAmountEx.value = n === null ? "" : n.toLocaleString("ja-JP");
+});
+fFiles.addEventListener("change", () => {
+  fileList.innerHTML = "";
+  [...fFiles.files].forEach((f) => {
+    const li = document.createElement("li");
+    li.textContent = `📎 ${f.name}(${Math.ceil(f.size / 1024).toLocaleString()} KB)`;
+    fileList.appendChild(li);
+  });
+});
+
+// ---- 転記データ(#data=...)の受け取り → フォームへ自動転記 ----
+(function receive() {
+  if (!location.hash.startsWith("#data=")) return;
+  let payload = null;
+  try {
+    payload = JSON.parse(decodeURIComponent(location.hash.slice("#data=".length)));
+  } catch {}
+  history.replaceState(null, "", location.pathname + location.search);
+  if (!payload || !Array.isArray(payload.fields)) {
+    showFlash("転記データの読み取りに失敗しました。");
+    return;
+  }
+  const fields = payload.fields;
   const pick = (...keys) => {
     for (const k of keys) {
       const f = fields.find((x) => String(x.label || "").includes(k) && x.value !== null && x.value !== undefined && x.value !== "");
@@ -206,56 +310,106 @@ function mapPayload(p) {
     }
     return "";
   };
-  const title = pick("契約書名", "件名", "契約名") || (p.filename || "").replace(/\.[^.]+$/, "") || "契約決裁申請";
+
+  // 件名
+  const title = pick("契約書名", "件名", "契約名") || (payload.filename || "").replace(/\.[^.]+$/, "");
+  fTitle.value = title ? `${title} の締結について` : "";
+
+  // 金額(税抜・税込)
+  const ex = toNumber(pick("金額(税抜)", "税抜"));
+  let inc = toNumber(pick("金額(税込)", "税込"));
+  if (inc === null && ex === null) inc = toNumber(pick("契約金額", "金額"));
+  fAmountEx.value = ex === null ? "" : ex.toLocaleString("ja-JP");
+  fAmountInc.value = inc === null ? "" : inc.toLocaleString("ja-JP");
+  suggestFlow();
+
+  // 自由記入欄: 抽出内容を文章として整形して書き込む
+  const partner = pick("取引先", "相手先", "相手方");
   const start = pick("開始日");
   const end = pick("終了日");
-  return {
-    title: `${title} の締結について`,
-    partner: pick("取引先", "相手先", "相手方", "会社名"),
-    amount: pick("金額(税込)", "税込", "契約金額", "決裁金額", "金額"),
-    period: start || end ? `${start || "—"} 〜 ${end || "—"}` : pick("契約期間", "期間"),
-    payment: pick("支払条件", "支払サイト", "支払方法", "支払"),
-    account: pick("勘定科目", "科目"),
-    reason: pick("摘要", "要約", "概要") || "標記の件について、添付の契約書のとおり締結いたしたく、ご決裁を仰ぎます。",
-    filename: p.filename || "",
-    raw: fields,
-  };
-}
-
-// ---- URLハッシュ(#data=...)で転記データを受け取り、決裁申請として起票 ----
-(function receive() {
-  if (!location.hash.startsWith("#data=")) return;
-  try {
-    const payload = JSON.parse(decodeURIComponent(location.hash.slice("#data=".length)));
-    const m = mapPayload(payload);
-    const apps = load();
-    const seq = (Number(localStorage.getItem("kessai_seq") || "0") + 1);
-    localStorage.setItem("kessai_seq", String(seq));
-    const now = new Date();
-    apps.push({
-      no: `RS-${now.getFullYear()}-${pad(seq, 4)}`,
-      applied_at: now.toISOString(),
-      status: "承認待ち",
-      approved: 1, // 申請者の押印まで完了
-      ...m,
-    });
-    save(apps);
-    sessionStorage.setItem("kessai_flash", "契約書アブストラクターからの転記データを受け付け、決裁申請を起票しました。");
-  } catch (e) {
-    sessionStorage.setItem("kessai_flash", "転記データの読み取りに失敗しました。");
+  const lines = [];
+  lines.push("下記のとおり契約を締結いたしたく、ご決裁を仰ぎます。");
+  lines.push("");
+  if (partner) lines.push(`■相手先: ${partner}`);
+  if (title) lines.push(`■契約書名: ${title}`);
+  if (start || end) lines.push(`■契約期間: ${start || "—"} 〜 ${end || "—"}`);
+  const payment = pick("支払条件", "支払サイト", "支払方法");
+  if (payment) lines.push(`■支払条件: ${payment}`);
+  const account = pick("勘定科目", "科目");
+  if (account) lines.push(`■経理処理(勘定科目): ${account}`);
+  const summary = pick("摘要", "要約", "概要");
+  if (summary) lines.push(`■概要: ${summary}`);
+  lines.push("");
+  lines.push("【契約書アブストラクターからの転記データ】");
+  fields.forEach((f) => {
+    const v = f.value === null || f.value === undefined || f.value === "" ? "(記載なし)"
+      : (typeof f.value === "number" ? f.value.toLocaleString("ja-JP") : f.value);
+    lines.push(`・${f.label}: ${v}`);
+  });
+  if (payload.filename) {
+    lines.push("");
+    lines.push(`※ 元ファイル: ${payload.filename}(契約書本体は添付欄から添付してください)`);
   }
-  history.replaceState(null, "", location.pathname + location.search);
+  fBody.value = lines.join("\n");
+
+  if (payload.filename) {
+    document.getElementById("attachHint").textContent =
+      `転記元の契約書「${payload.filename}」は自動添付されません。添付欄から選択してください。`;
+  }
+  showFlash("契約書アブストラクターからの転記データをフォームに反映しました。内容をご確認のうえ「この内容で申請する」を押してください。");
+  fTitle.scrollIntoView({ block: "start" });
 })();
 
-function statusBadge(app) {
-  const span = document.createElement("span");
-  if (app.status === "却下") { span.className = "status reject"; span.textContent = "却下"; }
-  else if (app.approved >= ROUTE.length) { span.className = "status done"; span.textContent = "決裁完了"; }
-  else if (app.approved > 1) { span.className = "status progress"; span.textContent = `承認中(${ROUTE[app.approved - 1]}承認済)`; }
-  else { span.className = "status wait"; span.textContent = "承認待ち"; }
-  return span;
+function showFlash(msg) {
+  const flash = document.getElementById("flash");
+  flash.textContent = "【お知らせ】 " + msg;
+  flash.style.display = "block";
 }
 
+// ---- 申請 ----
+document.getElementById("submitBtn").addEventListener("click", () => {
+  if (!fTitle.value.trim()) { alert("件名を入力してください"); fTitle.focus(); return; }
+  if (toNumber(fAmountInc.value) === null) { alert("金額(税込)を入力してください"); fAmountInc.focus(); return; }
+  if (!fBody.value.trim()) { alert("申請内容を入力してください"); fBody.focus(); return; }
+
+  const apps = load();
+  const seq = Number(localStorage.getItem("kessai_seq_v2") || "0") + 1;
+  localStorage.setItem("kessai_seq_v2", String(seq));
+  const now = new Date();
+  apps.push({
+    no: `RS-${now.getFullYear()}-${pad(seq, 4)}`,
+    applied_at: now.toISOString(),
+    title: fTitle.value.trim(),
+    amount_ex: toNumber(fAmountEx.value),
+    amount_inc: toNumber(fAmountInc.value),
+    flow: fFlow.value,
+    approver: fApprover.value,
+    body: fBody.value,
+    attachments: [...fFiles.files].map((f) => f.name),
+    status: "承認待ち",
+  });
+  save(apps);
+  resetForm();
+  showFlash(`決裁申請 RS-${now.getFullYear()}-${pad(seq, 4)} を受け付けました(決裁権者: ${apps[apps.length - 1].approver})。`);
+  render();
+  document.getElementById("listTable").scrollIntoView({ block: "start" });
+});
+
+function resetForm() {
+  fTitle.value = "";
+  fAmountEx.value = "";
+  fAmountInc.value = "";
+  fFlow.value = "minor";
+  fApprover.value = FLOW_APPROVER.minor;
+  fBody.value = "";
+  fFiles.value = "";
+  fileList.innerHTML = "";
+  document.getElementById("flowNote").textContent = "";
+  document.getElementById("attachHint").textContent = "契約書ドラフト、見積書等を添付してください。";
+}
+document.getElementById("resetBtn").addEventListener("click", resetForm);
+
+// ---- 申請一覧 ----
 function render() {
   const apps = load();
   const body = document.getElementById("listBody");
@@ -267,180 +421,55 @@ function render() {
   apps.slice().reverse().forEach((app, ri) => {
     const idx = apps.length - 1 - ri;
     const tr = document.createElement("tr");
-    const cells = [
-      app.no,
-      fmtDate(app.applied_at),
-      app.title,
-      app.partner || "—",
-      yen(app.amount) || "—",
-    ];
-    cells.forEach((v, ci) => {
+    const mk = (v, cls) => {
       const td = document.createElement("td");
-      if (ci === 4) td.className = "r";
-      if (ci === 0 || ci === 1) td.className = "c";
+      if (cls) td.className = cls;
       td.textContent = v;
-      tr.appendChild(td);
-    });
+      return td;
+    };
+    tr.append(
+      mk(app.no, "c"),
+      mk(fmtDate(app.applied_at), "c"),
+      mk(app.title),
+      mk(app.amount_ex === null ? "—" : yen(app.amount_ex) + " 円", "r"),
+      mk(app.amount_inc === null ? "—" : yen(app.amount_inc) + " 円", "r"),
+      mk(FLOW_LABEL[app.flow] || app.flow, "c"),
+      mk(app.approver, "c"),
+      mk(app.attachments && app.attachments.length ? `📎 ${app.attachments.length}件` : "—", "c"),
+    );
     const tdStatus = document.createElement("td");
     tdStatus.className = "c";
-    tdStatus.appendChild(statusBadge(app));
+    const badge = document.createElement("span");
+    badge.className = "status";
+    badge.textContent = app.status;
+    tdStatus.appendChild(badge);
     tr.appendChild(tdStatus);
 
     const tdOp = document.createElement("td");
     tdOp.className = "c";
-    const openBtn = document.createElement("button");
-    openBtn.textContent = "詳細";
-    openBtn.addEventListener("click", () => openDetail(idx));
     const delBtn = document.createElement("button");
     delBtn.textContent = "削除";
-    delBtn.style.marginLeft = "4px";
     delBtn.addEventListener("click", () => {
       if (!confirm(`${app.no} を削除しますか?`)) return;
-      apps.splice(idx, 1);
-      save(apps);
+      const list = load();
+      list.splice(idx, 1);
+      save(list);
       render();
     });
-    tdOp.append(openBtn, delBtn);
+    tdOp.appendChild(delBtn);
     tr.appendChild(tdOp);
     body.appendChild(tr);
   });
-}
-
-const detail = document.getElementById("detail");
-detail.addEventListener("click", (e) => { if (e.target === detail) detail.close(); });
-
-function openDetail(idx) {
-  const apps = load();
-  const app = apps[idx];
-  if (!app) return;
-  const box = document.getElementById("ringiBody");
-  box.innerHTML = "";
-
-  const head = document.createElement("div");
-  head.className = "ringi-head";
-  head.innerHTML = `<h2>稟議書</h2><div class="ringi-meta">決裁番号: ${app.no}<br>申請日: ${fmtDate(app.applied_at)}</div>`;
-  box.appendChild(head);
-  const note = document.createElement("div");
-  note.className = "ringi-note";
-  note.textContent = "(契約書アブストラクターからの転記により自動起票)";
-  box.appendChild(note);
-
-  // 承認欄
-  const appr = document.createElement("div");
-  appr.className = "approvals";
-  ROUTE.forEach((role, i) => {
-    const b = document.createElement("div");
-    b.className = "approval-box";
-    const sealed = app.status !== "却下" && i < app.approved;
-    b.innerHTML = `<div class="role">${role}</div>
-      <div class="seal">${sealed ? `<div class="hanko">${SEALS[role]}</div><div class="when">${fmtDate(app.applied_at)}</div>` : ""}</div>`;
-    appr.appendChild(b);
-  });
-  box.appendChild(appr);
-
-  // 稟議書本体(決裁システム独自のフォーマット)
-  const form = document.createElement("table");
-  form.className = "form";
-  const rows = [
-    ["件名", app.title],
-    ["申請者", "総務部 総務課 青田 宗一(内線 2103)"],
-    ["相手先", app.partner || "—"],
-    ["決裁金額(税込)", { html: `<span class="amount">${yen(app.amount) || "—"}</span>`, cls: "amount" }],
-    ["契約期間", app.period || "—"],
-    ["支払条件", app.payment || "—"],
-    ["経理処理(勘定科目)", app.account || "—"],
-    ["申請理由", app.reason || "—"],
-    ["添付書類", app.filename ? `契約書ドラフト: ${app.filename}(1通)` : "—"],
-  ];
-  rows.forEach(([label, val]) => {
-    const tr = document.createElement("tr");
-    const th = document.createElement("th");
-    th.textContent = label;
-    const td = document.createElement("td");
-    if (val && typeof val === "object") { td.innerHTML = val.html; td.className = val.cls; }
-    else td.textContent = val;
-    tr.append(th, td);
-    form.appendChild(tr);
-  });
-  box.appendChild(form);
-
-  // 参考: 転記された元データ(フォーマットが異なるためそのまま格納)
-  if (app.raw && app.raw.length) {
-    const det = document.createElement("details");
-    det.className = "raw";
-    const sum = document.createElement("summary");
-    sum.textContent = `参考: 契約書アブストラクターからの転記データ(${app.raw.length}項目)`;
-    det.appendChild(sum);
-    const t = document.createElement("table");
-    app.raw.forEach((f) => {
-      const tr = document.createElement("tr");
-      const th = document.createElement("th");
-      th.textContent = f.label;
-      const td = document.createElement("td");
-      td.textContent = f.value === null || f.value === undefined ? "" :
-        (typeof f.value === "number" ? f.value.toLocaleString("ja-JP") : f.value);
-      tr.append(th, td);
-      t.appendChild(tr);
-    });
-    det.appendChild(t);
-    box.appendChild(det);
-  }
-
-  // 操作
-  const actions = document.createElement("div");
-  actions.className = "ringi-actions";
-  if (app.status !== "却下" && app.approved < ROUTE.length) {
-    const approveBtn = document.createElement("button");
-    approveBtn.className = "approve";
-    approveBtn.textContent = `承認する(${ROUTE[app.approved]})`;
-    approveBtn.addEventListener("click", () => {
-      app.approved += 1;
-      if (app.approved >= ROUTE.length) app.status = "決裁完了";
-      save(apps);
-      render();
-      openDetail(idx);
-    });
-    const rejectBtn = document.createElement("button");
-    rejectBtn.className = "reject";
-    rejectBtn.textContent = "却下";
-    rejectBtn.addEventListener("click", () => {
-      app.status = "却下";
-      save(apps);
-      render();
-      openDetail(idx);
-    });
-    actions.append(approveBtn, rejectBtn);
-  }
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "閉じる";
-  closeBtn.addEventListener("click", () => detail.close());
-  actions.appendChild(closeBtn);
-  box.appendChild(actions);
-
-  if (!detail.open) detail.showModal();
 }
 
 document.getElementById("clearBtn").addEventListener("click", () => {
   const apps = load();
   if (apps.length && confirm("すべての申請を削除しますか?(デモ用のリセット)")) {
     localStorage.removeItem(KEY);
-    localStorage.removeItem("kessai_seq");
+    localStorage.removeItem("kessai_seq_v2");
     render();
   }
 });
-
-// 転記直後のメッセージ + 最新の申請を自動で開く
-const flashMsg = sessionStorage.getItem("kessai_flash");
-if (flashMsg) {
-  const flash = document.getElementById("flash");
-  flash.textContent = "【お知らせ】 " + flashMsg;
-  flash.style.display = "block";
-  sessionStorage.removeItem("kessai_flash");
-  const apps = load();
-  if (apps.length && flashMsg.includes("起票")) {
-    setTimeout(() => openDetail(apps.length - 1), 300);
-  }
-}
 
 render();
 </script>
