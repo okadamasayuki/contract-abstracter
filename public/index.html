@@ -48,6 +48,11 @@
     transition: border-color .15s, background .15s;
   }
   #dropzone.dragover { border-color: var(--accent); background: #fdf8f4; }
+  .samples {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-top: 10px; font-size: 13px; color: var(--sub);
+  }
+  .samples .sample { padding: 6px 12px; border-radius: 999px; }
   #dropzone strong { color: var(--accent); }
   #dropzone .hint { color: var(--sub); font-size: 12px; margin-top: 8px; }
 
@@ -135,6 +140,14 @@
     <input type="file" id="fileInput" multiple hidden
            accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md">
   </div>
+  <div class="samples">
+    <span>サンプル契約書で試す(架空のダミー):</span>
+    <button class="sample" data-file="/samples/gyomu-itaku.pdf" data-name="業務委託契約書.pdf">業務委託</button>
+    <button class="sample" data-file="/samples/chintaishaku.pdf" data-name="建物賃貸借契約書.pdf">オフィス賃貸</button>
+    <button class="sample" data-file="/samples/license.pdf" data-name="ソフトウェア利用契約書.pdf">SaaS利用</button>
+    <button class="sample" data-file="/samples/komon.pdf" data-name="税務顧問契約書.pdf">税務顧問</button>
+    <button class="sample" data-file="/samples/koukoku.pdf" data-name="広告掲載契約書.pdf">広告掲載</button>
+  </div>
   <div id="queue"></div>
 
   <div class="toolbar">
@@ -212,6 +225,23 @@ fileInput.addEventListener("change", () => {
 function handleFiles(fileList) {
   for (const file of fileList) uploadFile(file);
 }
+
+// サンプル契約書ボタン: クリックだけでPDFを取得して抽出にかける
+document.querySelectorAll(".sample").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      const resp = await fetch(btn.dataset.file);
+      if (!resp.ok) throw new Error("サンプルの取得に失敗しました");
+      const blob = await resp.blob();
+      await uploadFile(new File([blob], btn.dataset.name, { type: "application/pdf" }));
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
 
 async function uploadFile(file) {
   const job = document.createElement("div");

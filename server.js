@@ -143,6 +143,7 @@ function fileToContentBlock(file) {
 }
 
 app.use(express.static(path.join(here, "public")));
+app.use("/samples", express.static(path.join(here, "docs", "samples")));
 
 app.post("/api/extract", upload.single("file"), async (req, res) => {
   try {
