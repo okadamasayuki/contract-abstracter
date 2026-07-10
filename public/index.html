@@ -38,7 +38,7 @@
   dialog#settings h3 { margin: 0 0 14px; font-size: 16px; }
   dialog#settings label { display: block; font-weight: 600; margin-bottom: 6px; }
   dialog#settings input {
-    width: 100%; font: inherit;
+    width: 100%; font: inherit; font-size: 16px; /* スマホでの自動拡大防止 */
     border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
   }
   dialog#settings input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -71,12 +71,12 @@
   .format-item input[type="radio"] { margin-top: 4px; accent-color: var(--accent); }
   .format-item .fmt-desc { color: var(--sub); font-size: 12px; margin-top: 4px; line-height: 1.7; }
   .fmt-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-  .fmt-name { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
   .fmt-body textarea {
-    font: inherit; border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; font-size: 16px; /* 16px未満だとスマホで入力時に画面が自動拡大されるため */
+    border: 1px solid var(--line); border-radius: 8px;
     padding: 8px 10px; min-height: 140px; resize: vertical; line-height: 1.8;
   }
-  .fmt-name:focus, .fmt-body textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .fmt-body textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .fmt-del { color: var(--sub); }
   .fmt-del:hover { color: var(--err); border-color: var(--err); }
 
@@ -344,7 +344,7 @@ function setActiveFormat(id) {
   updateFormatBadge();
 }
 function formatDisplayName(f, idx) {
-  return f.name || `カスタムフォーマット${idx + 1}`;
+  return `カスタムフォーマット${idx + 1}`;
 }
 function updateFormatBadge() {
   const formats = loadFormats();
@@ -389,16 +389,6 @@ function renderFormats() {
 
     const body = document.createElement("div");
     body.className = "fmt-body";
-    const nameInput = document.createElement("input");
-    nameInput.type = "text";
-    nameInput.className = "fmt-name";
-    nameInput.placeholder = `フォーマット名(例: 経理提出用)`;
-    nameInput.value = f.name || "";
-    nameInput.addEventListener("change", () => {
-      f.name = nameInput.value.trim();
-      saveFormats(formats);
-      updateFormatBadge();
-    });
     const ta = document.createElement("textarea");
     ta.placeholder = "抽出したい項目を書いてください(1行に1項目)。\n例:\n取引先名\n契約金額(税込)\n支払サイト\n解約予告期間\n自動更新の有無\n担当部署への確認事項";
     ta.value = f.text || "";
@@ -406,7 +396,6 @@ function renderFormats() {
       f.text = ta.value;
       saveFormats(formats);
     });
-    body.appendChild(nameInput);
     body.appendChild(ta);
 
     const del = document.createElement("button");
