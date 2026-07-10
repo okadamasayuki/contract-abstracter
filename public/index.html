@@ -26,11 +26,24 @@
   header {
     padding: 28px 32px 8px;
   }
-  header h1 {
-    margin: 0;
-    font-size: 22px;
-    letter-spacing: 0.02em;
+  .header-row { display: flex; align-items: center; gap: 12px; max-width: 1400px; margin: 0 auto; }
+  .header-row h1 { margin: 0; font-size: 22px; letter-spacing: 0.02em; flex: 1; }
+  dialog#settings {
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 24px; width: min(520px, 90vw);
+    box-shadow: 0 12px 40px rgba(0,0,0,.18);
+    font-size: 13px; color: var(--ink);
   }
+  dialog#settings::backdrop { background: rgba(31,41,51,.45); }
+  dialog#settings h3 { margin: 0 0 14px; font-size: 16px; }
+  dialog#settings label { display: block; font-weight: 600; margin-bottom: 6px; }
+  dialog#settings input {
+    width: 100%; font: inherit;
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
+  }
+  dialog#settings input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  dialog#settings .note { color: var(--sub); font-size: 12px; margin-top: 10px; line-height: 1.7; }
+  dialog#settings .actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
   header p {
     margin: 6px 0 0;
     color: var(--sub);
@@ -202,9 +215,25 @@
 </head>
 <body>
 <header>
-  <h1>契約書アブストラクター</h1>
+  <div class="header-row">
+    <h1>契約書アブストラクター</h1>
+    <button id="settingsBtn" title="設定">⚙ 設定</button>
+  </div>
   <p>契約書(PDF・画像・テキスト)をアップロードすると、金額・取引先・勘定科目などを自動抽出して一覧化します。セルは直接編集でき、CSVでダウンロードできます。</p>
 </header>
+
+<dialog id="settings">
+  <h3>設定</h3>
+  <label for="transferUrl">転記先URL</label>
+  <input type="text" id="transferUrl" placeholder="例: /ledger.html や https://example.com/entry" autocomplete="off">
+  <div class="note">
+    抽出結果カードの「転記」ボタンを押すと、このURLを開いてデータを引き渡します(URL末尾の #data= にJSONを付与)。
+    初期値はサンプルの<a href="/ledger.html" target="_blank" rel="noopener">契約台帳ページ</a>です。空欄にすると転記ボタンは動作しません。
+  </div>
+  <div class="actions">
+    <button id="settingsSave" class="primary">保存して閉じる</button>
+  </div>
+</dialog>
 <main>
   <div class="tabs">
     <button class="tab active" data-panel="extract">契約書読み込み</button>
@@ -411,6 +440,45 @@ document.getElementById("addFormatBtn").addEventListener("click", () => {
   tas[tas.length - 1]?.focus();
 });
 
+// ---- 設定モーダル(転記先URL) ----
+const settings = document.getElementById("settings");
+const transferInput = document.getElementById("transferUrl");
+if (localStorage.getItem("transfer_url") === null) {
+  localStorage.setItem("transfer_url", "/ledger.html");
+}
+transferInput.value = localStorage.getItem("transfer_url") || "";
+transferInput.addEventListener("change", () => {
+  localStorage.setItem("transfer_url", transferInput.value.trim());
+});
+document.getElementById("settingsBtn").addEventListener("click", () => settings.showModal());
+document.getElementById("settingsSave").addEventListener("click", () => settings.close());
+settings.addEventListener("click", (e) => { if (e.target === settings) settings.close(); });
+
+function rowToFields(row) {
+  if (row.__items) return row.__items.map((it) => ({ label: it.label, value: it.value }));
+  return COLUMNS.filter((c) => c.key !== "filename").map((c) => ({
+    label: c.label,
+    value: row[c.key] === undefined ? null : row[c.key],
+  }));
+}
+
+function transferRow(row) {
+  const url = (localStorage.getItem("transfer_url") || "").trim();
+  if (!url) {
+    settings.showModal();
+    alert("転記先URLが未設定です。「⚙ 設定」で入力してください");
+    return;
+  }
+  const payload = {
+    source: "契約書アブストラクター",
+    transferred_at: new Date().toISOString(),
+    filename: row.filename || "",
+    fields: rowToFields(row),
+  };
+  const sep = url.includes("#") ? "&" : "#";
+  window.open(url + sep + "data=" + encodeURIComponent(JSON.stringify(payload)), "_blank");
+}
+
 const rows = [];
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -545,12 +613,17 @@ function render() {
     const fname = document.createElement("span");
     fname.className = "fname";
     fname.textContent = row.filename || "(ファイル名なし)";
+    const transferBtn = document.createElement("button");
+    transferBtn.textContent = "転記";
+    transferBtn.title = "設定した転記先URLへこのデータを転記";
+    transferBtn.addEventListener("click", () => transferRow(row));
     const btn = document.createElement("button");
     btn.className = "del";
     btn.textContent = "✕";
     btn.title = "この結果を削除";
     btn.addEventListener("click", () => { rows.splice(i, 1); render(); });
     head.appendChild(fname);
+    head.appendChild(transferBtn);
     head.appendChild(btn);
     card.appendChild(head);
 

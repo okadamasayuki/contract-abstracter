@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>契約台帳(転記先サンプル)</title>
+<style>
+  :root {
+    --bg: #eef2f0;
+    --card: #ffffff;
+    --ink: #1f2933;
+    --sub: #6b7280;
+    --accent: #2e6e5e;
+    --accent-dark: #245648;
+    --line: #dbe3df;
+    --err: #b3403a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header { padding: 28px 32px 8px; max-width: 1000px; margin: 0 auto; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: 0.02em; }
+  header p { margin: 6px 0 0; color: var(--sub); font-size: 13px; line-height: 1.8; }
+  main { padding: 20px 32px 60px; max-width: 1000px; margin: 0 auto; }
+
+  .flash {
+    background: #e5f2ec; border: 1px solid var(--accent); color: var(--accent-dark);
+    border-radius: 10px; padding: 10px 16px; font-size: 13px; margin-bottom: 16px;
+    display: none;
+  }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+  .toolbar h2 { margin: 0; font-size: 16px; flex: 1; }
+  .badge {
+    display: inline-block; background: #e2e9e6; border-radius: 6px;
+    padding: 2px 8px; font-size: 12px;
+  }
+  button {
+    font: inherit; font-size: 13px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--ink);
+    padding: 8px 16px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: var(--accent-dark); }
+
+  #entries { display: flex; flex-direction: column; gap: 14px; }
+  .entry {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; overflow: hidden;
+  }
+  .entry-head {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; background: #f4f8f6;
+    border-bottom: 1px solid var(--line); font-size: 13px;
+  }
+  .entry-head .no { font-weight: 700; color: var(--accent); }
+  .entry-head .fname { flex: 1; font-weight: 600; word-break: break-all; }
+  .entry-head .when { color: var(--sub); font-size: 12px; }
+  .entry-head .del {
+    border: none; background: none; color: var(--sub);
+    cursor: pointer; font-size: 15px; padding: 2px 6px;
+  }
+  .entry-head .del:hover { color: var(--err); }
+  table.kv { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .kv th {
+    width: 11em; background: #f4f8f6; color: var(--sub);
+    font-weight: 600; font-size: 12px; text-align: left;
+    padding: 8px 12px; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .kv td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .kv tr:last-child th, .kv tr:last-child td { border-bottom: none; }
+  #empty {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    text-align: center; color: var(--sub); padding: 40px; font-size: 13px;
+    line-height: 1.9;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>契約台帳(転記先サンプル)</h1>
+  <p>
+    このページは「契約書アブストラクター」の転記先のサンプルです。
+    アブストラクター側で抽出結果の「転記」ボタンを押すと、このページが開いてデータが台帳に追加されます。
+    台帳の内容はこのブラウザ(localStorage)に保存されます。
+  </p>
+</header>
+<main>
+  <div class="flash" id="flash"></div>
+  <div class="toolbar">
+    <h2>台帳 <span class="badge" id="count">0件</span></h2>
+    <button id="csvBtn">CSVダウンロード</button>
+    <button id="clearBtn">全件クリア</button>
+  </div>
+  <div id="entries"></div>
+  <div id="empty">
+    まだ転記されたデータがありません。<br>
+    契約書アブストラクターで契約書を読み込み、結果カードの「転記」ボタンを押してください。
+  </div>
+</main>
+
+<script>
+const KEY = "ledger_entries";
+
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+}
+function saveEntries(entries) {
+  localStorage.setItem(KEY, JSON.stringify(entries));
+}
+
+// URLハッシュ(#data=...)で渡されたデータを受け取って台帳に追加
+(function receive() {
+  if (!location.hash.startsWith("#data=")) return;
+  try {
+    const payload = JSON.parse(decodeURIComponent(location.hash.slice("#data=".length)));
+    if (!payload || !Array.isArray(payload.fields)) throw new Error("bad payload");
+    const entries = loadEntries();
+    entries.push({
+      received_at: new Date().toISOString(),
+      filename: payload.filename || "",
+      source: payload.source || "",
+      fields: payload.fields.map((f) => ({ label: String(f.label ?? ""), value: f.value ?? null })),
+    });
+    saveEntries(entries);
+    const flash = document.currentScript ? null : null;
+    sessionStorage.setItem("ledger_flash", "1件のデータを転記しました");
+  } catch (e) {
+    sessionStorage.setItem("ledger_flash", "転記データの読み取りに失敗しました");
+  }
+  // リロード時の二重登録を防ぐためハッシュを消す
+  history.replaceState(null, "", location.pathname + location.search);
+})();
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function render() {
+  const entries = loadEntries();
+  const box = document.getElementById("entries");
+  box.innerHTML = "";
+  document.getElementById("empty").style.display = entries.length ? "none" : "block";
+  document.getElementById("count").textContent = entries.length + "件";
+
+  entries.slice().reverse().forEach((entry, ri) => {
+    const idx = entries.length - 1 - ri; // 元配列でのインデックス
+    const card = document.createElement("section");
+    card.className = "entry";
+
+    const head = document.createElement("div");
+    head.className = "entry-head";
+    const no = document.createElement("span");
+    no.className = "no";
+    no.textContent = "No." + (idx + 1);
+    const fname = document.createElement("span");
+    fname.className = "fname";
+    fname.textContent = entry.filename || "(ファイル名なし)";
+    const when = document.createElement("span");
+    when.className = "when";
+    when.textContent = "転記: " + fmtDate(entry.received_at);
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "✕";
+    del.title = "この転記を削除";
+    del.addEventListener("click", () => {
+      entries.splice(idx, 1);
+      saveEntries(entries);
+      render();
+    });
+    head.append(no, fname, when, del);
+    card.appendChild(head);
+
+    const kv = document.createElement("table");
+    kv.className = "kv";
+    entry.fields.forEach((f) => {
+      const tr = document.createElement("tr");
+      const th = document.createElement("th");
+      th.textContent = f.label;
+      const td = document.createElement("td");
+      if (f.value === null || f.value === undefined) td.textContent = "";
+      else if (typeof f.value === "number") td.textContent = f.value.toLocaleString("ja-JP");
+      else td.textContent = f.value;
+      tr.append(th, td);
+      kv.appendChild(tr);
+    });
+    card.appendChild(kv);
+    box.appendChild(card);
+  });
+}
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  const entries = loadEntries();
+  if (entries.length && confirm("台帳をすべて削除しますか?")) {
+    localStorage.removeItem(KEY);
+    render();
+  }
+});
+
+document.getElementById("csvBtn").addEventListener("click", () => {
+  const entries = loadEntries();
+  if (!entries.length) { alert("出力するデータがありません"); return; }
+  const esc = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const labels = [];
+  const seen = new Set();
+  const add = (l) => { if (l && !seen.has(l)) { seen.add(l); labels.push(l); } };
+  add("No."); add("転記日時"); add("ファイル");
+  entries.forEach((e) => e.fields.forEach((f) => add(f.label)));
+  const lines = entries.map((e, i) =>
+    labels.map((label) => {
+      if (label === "No.") return String(i + 1);
+      if (label === "転記日時") return esc(fmtDate(e.received_at));
+      if (label === "ファイル") return esc(e.filename);
+      const f = e.fields.find((x) => x.label === label);
+      return esc(f ? f.value : "");
+    }).join(","));
+  const blob = new Blob(["﻿" + [labels.join(","), ...lines].join("\r\n")], {
+    type: "text/csv;charset=utf-8",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const d = new Date();
+  a.download = `契約台帳_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// 転記直後のメッセージ表示
+const flashMsg = sessionStorage.getItem("ledger_flash");
+if (flashMsg) {
+  const flash = document.getElementById("flash");
+  flash.textContent = "✓ " + flashMsg;
+  flash.style.display = "block";
+  sessionStorage.removeItem("ledger_flash");
+  setTimeout(() => { flash.style.display = "none"; }, 5000);
+}
+
+render();
+</script>
+</body>
+</html>

@@ -224,6 +224,12 @@
     契約書ファイルも抽出のために Anthropic API へ直接送信されるのみで、他のサーバーには保存されません。
     共有PCで使ったあとは「キーを消去」を押してください。
   </div>
+  <label for="transferUrl" style="margin-top: 18px">転記先URL</label>
+  <input type="text" id="transferUrl" placeholder="例: ledger.html や https://example.com/entry" autocomplete="off">
+  <div class="note">
+    抽出結果カードの「転記」ボタンを押すと、このURLを開いてデータを引き渡します(URL末尾の #data= にJSONを付与)。
+    初期値はサンプルの<a href="ledger.html" target="_blank" rel="noopener">契約台帳ページ</a>です。空欄にすると転記ボタンは動作しません。
+  </div>
   <div class="actions">
     <button id="keyClear">キーを消去</button>
     <button id="settingsSave" class="primary">保存して閉じる</button>
@@ -414,6 +420,41 @@ settings.addEventListener("click", (e) => {
     settings.close();
   }
 });
+
+// ---- 転記先URL(初期値はサンプルの契約台帳ページ) ----
+const transferInput = document.getElementById("transferUrl");
+if (localStorage.getItem("transfer_url") === null) {
+  localStorage.setItem("transfer_url", "ledger.html");
+}
+transferInput.value = localStorage.getItem("transfer_url") || "";
+transferInput.addEventListener("change", () => {
+  localStorage.setItem("transfer_url", transferInput.value.trim());
+});
+
+function rowToFields(row) {
+  if (row.__items) return row.__items.map((it) => ({ label: it.label, value: it.value }));
+  return COLUMNS.filter((c) => c.key !== "filename").map((c) => ({
+    label: c.label,
+    value: row[c.key] === undefined ? null : row[c.key],
+  }));
+}
+
+function transferRow(row) {
+  const url = (localStorage.getItem("transfer_url") || "").trim();
+  if (!url) {
+    settings.showModal();
+    alert("転記先URLが未設定です。「⚙ 設定」で入力してください");
+    return;
+  }
+  const payload = {
+    source: "契約書アブストラクター",
+    transferred_at: new Date().toISOString(),
+    filename: row.filename || "",
+    fields: rowToFields(row),
+  };
+  const sep = url.includes("#") ? "&" : "#";
+  window.open(url + sep + "data=" + encodeURIComponent(JSON.stringify(payload)), "_blank");
+}
 
 // 初回訪問でキー未設定なら設定を開く
 if (!(localStorage.getItem("anthropic_api_key") || "").trim()) {
@@ -797,12 +838,17 @@ function render() {
     const fname = document.createElement("span");
     fname.className = "fname";
     fname.textContent = row.filename || "(ファイル名なし)";
+    const transferBtn = document.createElement("button");
+    transferBtn.textContent = "転記";
+    transferBtn.title = "設定した転記先URLへこのデータを転記";
+    transferBtn.addEventListener("click", () => transferRow(row));
     const btn = document.createElement("button");
     btn.className = "del";
     btn.textContent = "✕";
     btn.title = "この結果を削除";
     btn.addEventListener("click", () => { rows.splice(i, 1); render(); });
     head.appendChild(fname);
+    head.appendChild(transferBtn);
     head.appendChild(btn);
     card.appendChild(head);
 
