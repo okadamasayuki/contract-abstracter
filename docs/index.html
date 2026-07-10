@@ -225,10 +225,11 @@
     共有PCで使ったあとは「キーを消去」を押してください。
   </div>
   <label for="transferUrl" style="margin-top: 18px">転記先URL</label>
-  <input type="text" id="transferUrl" placeholder="例: ledger.html や https://example.com/entry" autocomplete="off">
+  <input type="text" id="transferUrl" placeholder="例: kessai.html や https://example.com/entry" autocomplete="off">
   <div class="note">
     抽出結果カードの「転記」ボタンを押すと、このURLを開いてデータを引き渡します(URL末尾の #data= にJSONを付与)。
-    初期値はサンプルの<a href="ledger.html" target="_blank" rel="noopener">契約台帳ページ</a>です。空欄にすると転記ボタンは動作しません。
+    初期値はサンプルの<a href="kessai.html" target="_blank" rel="noopener">社内決裁システム(デモ)</a>です。
+    転記すると稟議書として自動起票されます。空欄にすると転記ボタンは動作しません。
   </div>
   <div class="actions">
     <button id="keyClear">キーを消去</button>
@@ -423,8 +424,11 @@ settings.addEventListener("click", (e) => {
 
 // ---- 転記先URL(初期値はサンプルの契約台帳ページ) ----
 const transferInput = document.getElementById("transferUrl");
-if (localStorage.getItem("transfer_url") === null) {
-  localStorage.setItem("transfer_url", "ledger.html");
+{
+  const cur = localStorage.getItem("transfer_url");
+  if (cur === null || cur === "ledger.html") {
+    localStorage.setItem("transfer_url", "kessai.html"); // 旧デフォルトからの移行を含む
+  }
 }
 transferInput.value = localStorage.getItem("transfer_url") || "";
 transferInput.addEventListener("change", () => {

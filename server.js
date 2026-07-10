@@ -173,6 +173,7 @@ function fileToContentBlock(file) {
 app.use(express.static(path.join(here, "public")));
 app.use("/samples", express.static(path.join(here, "docs", "samples")));
 // 転記先サンプルページ(docs/と共用)
+app.use("/kessai.html", express.static(path.join(here, "docs", "kessai.html")));
 app.use("/ledger.html", express.static(path.join(here, "docs", "ledger.html")));
 
 app.post("/api/extract", upload.single("file"), async (req, res) => {
