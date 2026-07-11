@@ -222,7 +222,7 @@
   <div class="note">
     キーはこのブラウザ(localStorage)にのみ保存され、Anthropic API 以外には送信されません。
     契約書ファイルも抽出のために Anthropic API へ直接送信されるのみで、他のサーバーには保存されません。
-    共有PCで使ったあとは「キーを消去」を押してください。
+    キーを変更する場合は、新しいキーを入力して保存してください。
   </div>
   <label for="transferUrl" style="margin-top: 18px">転記先URL</label>
   <input type="text" id="transferUrl" placeholder="例: kessai.html や https://example.com/entry" autocomplete="off">
@@ -232,7 +232,6 @@
     転記すると稟議書として自動起票されます。空欄にすると転記ボタンは動作しません。
   </div>
   <div class="actions">
-    <button id="keyClear">キーを消去</button>
     <button id="settingsSave" class="primary">保存して閉じる</button>
   </div>
 </dialog>
@@ -414,11 +413,6 @@ document.getElementById("settingsSave").addEventListener("click", () => {
   settings.close();
 });
 keyInput.addEventListener("change", saveKey);
-document.getElementById("keyClear").addEventListener("click", () => {
-  localStorage.removeItem("anthropic_api_key");
-  keyInput.value = "";
-  refreshKeyStatus();
-});
 // 背景クリックで閉じる(閉じる前に入力中のキーを保存)
 settings.addEventListener("click", (e) => {
   if (e.target === settings) {
