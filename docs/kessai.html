@@ -327,53 +327,113 @@ fFiles.addEventListener("change", () => {
     }
     return "";
   };
+  const fmtVal = (v) =>
+    v === null || v === undefined || v === "" ? "" :
+    (typeof v === "number" ? v.toLocaleString("ja-JP") : String(v));
 
-  // 件名
-  const title = pick("契約書名", "件名", "契約名") || (payload.filename || "").replace(/\.[^.]+$/, "");
-  fTitle.value = title ? `${title} の締結について` : "";
-
-  // 金額(税抜・税込)
-  const ex = toNumber(pick("金額(税抜)", "税抜"));
-  let inc = toNumber(pick("金額(税込)", "税込"));
-  if (inc === null && ex === null) inc = toNumber(pick("契約金額", "金額"));
-  fAmountEx.value = ex === null ? "" : ex.toLocaleString("ja-JP");
-  fAmountInc.value = inc === null ? "" : inc.toLocaleString("ja-JP");
-  suggestFlow();
-
-  // 自由記入欄: 抽出内容を文章として整形して書き込む
-  const partner = pick("取引先", "相手先", "相手方");
-  const start = pick("開始日");
-  const end = pick("終了日");
-  const lines = [];
-  lines.push("下記のとおり契約を締結いたしたく、ご決裁を仰ぎます。");
-  lines.push("");
-  if (partner) lines.push(`■相手先: ${partner}`);
-  if (title) lines.push(`■契約書名: ${title}`);
-  if (start || end) lines.push(`■契約期間: ${start || "—"} 〜 ${end || "—"}`);
-  const payment = pick("支払条件", "支払サイト", "支払方法");
-  if (payment) lines.push(`■支払条件: ${payment}`);
-  const account = pick("勘定科目", "科目");
-  if (account) lines.push(`■経理処理(勘定科目): ${account}`);
-  const summary = pick("摘要", "要約", "概要");
-  if (summary) lines.push(`■概要: ${summary}`);
-  lines.push("");
-  lines.push("【契約書アブストラクターからの転記データ】");
+  // 転記元データの参考ブロック(自由記入欄の末尾に常に付ける)
+  const refLines = ["【契約書アブストラクターからの転記データ】"];
   fields.forEach((f) => {
-    const v = f.value === null || f.value === undefined || f.value === "" ? "(記載なし)"
-      : (typeof f.value === "number" ? f.value.toLocaleString("ja-JP") : f.value);
-    lines.push(`・${f.label}: ${v}`);
+    refLines.push(`・${f.label}: ${fmtVal(f.value) || "(記載なし)"}`);
   });
   if (payload.filename) {
-    lines.push("");
-    lines.push(`※ 元ファイル: ${payload.filename}(契約書本体は添付欄から添付してください)`);
+    refLines.push("");
+    refLines.push(`※ 元ファイル: ${payload.filename}(契約書本体は添付欄から添付してください)`);
   }
-  fBody.value = lines.join("\n");
+
+  // セレクトボックスを文言の部分一致で選択
+  const selectByText = (sel, text) => {
+    const t = String(text);
+    for (const opt of sel.options) {
+      if (opt.textContent.includes(t) || t.includes(opt.textContent) ||
+          (opt.value && (opt.value === t || t.includes(opt.value)))) {
+        sel.value = opt.value;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // マッピング(転記元で設定した「転記先の欄 ← 項目」)に従って記入
+  function applyMapping(mapping) {
+    const valueOf = (name) => {
+      const f =
+        fields.find((x) => String(x.label) === String(name)) ||
+        fields.find((x) => String(x.label).includes(name) || String(name).includes(String(x.label)));
+      return f ? f.value : null;
+    };
+    const bodyParts = [];
+    let applied = 0;
+    let flowMapped = false;
+    mapping.forEach((m) => {
+      const dest = String(m.dest || m.destination_field || "");
+      const v = valueOf(m.source || m.source_item || "");
+      if (!dest || v === null || v === undefined || v === "") return;
+      if (/件名|タイトル/.test(dest)) { fTitle.value = String(v).replace(/\s+$/, ""); applied++; }
+      else if (/税抜/.test(dest)) { const n = toNumber(v); if (n !== null) { fAmountEx.value = n.toLocaleString("ja-JP"); applied++; } }
+      else if (/税込|金額/.test(dest)) { const n = toNumber(v); if (n !== null) { fAmountInc.value = n.toLocaleString("ja-JP"); applied++; } }
+      else if (/フロー/.test(dest)) { if (selectByText(fFlow, v)) { flowMapped = true; applied++; } }
+      else if (/権者|承認者|決裁者/.test(dest)) { if (selectByText(fApprover, v)) applied++; }
+      else if (/申請内容|自由記入|申請理由|内容|備考/.test(dest)) { bodyParts.push(`■${m.source || m.source_item}: ${fmtVal(v)}`); applied++; }
+      else { bodyParts.push(`■${dest}: ${fmtVal(v)}`); applied++; } // 対応欄がないものは自由記入欄へ
+    });
+    if (!applied) return false;
+    if (!flowMapped) suggestFlow();
+    fBody.value = [
+      "下記のとおり契約を締結いたしたく、ご決裁を仰ぎます。",
+      "",
+      ...bodyParts,
+      "",
+      ...refLines,
+    ].join("\n");
+    return true;
+  }
+
+  // 項目名からの自動推測(マッピング未設定時の従来動作)
+  function applyHeuristic() {
+    const title = pick("契約書名", "件名", "契約名") || (payload.filename || "").replace(/\.[^.]+$/, "");
+    fTitle.value = title ? `${title} の締結について` : "";
+
+    const ex = toNumber(pick("金額(税抜)", "税抜"));
+    let inc = toNumber(pick("金額(税込)", "税込"));
+    if (inc === null && ex === null) inc = toNumber(pick("契約金額", "金額"));
+    fAmountEx.value = ex === null ? "" : ex.toLocaleString("ja-JP");
+    fAmountInc.value = inc === null ? "" : inc.toLocaleString("ja-JP");
+    suggestFlow();
+
+    const partner = pick("取引先", "相手先", "相手方");
+    const start = pick("開始日");
+    const end = pick("終了日");
+    const lines = [];
+    lines.push("下記のとおり契約を締結いたしたく、ご決裁を仰ぎます。");
+    lines.push("");
+    if (partner) lines.push(`■相手先: ${partner}`);
+    if (title) lines.push(`■契約書名: ${title}`);
+    if (start || end) lines.push(`■契約期間: ${start || "—"} 〜 ${end || "—"}`);
+    const payment = pick("支払条件", "支払サイト", "支払方法");
+    if (payment) lines.push(`■支払条件: ${payment}`);
+    const account = pick("勘定科目", "科目");
+    if (account) lines.push(`■経理処理(勘定科目): ${account}`);
+    const summary = pick("摘要", "要約", "概要");
+    if (summary) lines.push(`■概要: ${summary}`);
+    lines.push("");
+    lines.push(...refLines);
+    fBody.value = lines.join("\n");
+  }
+
+  const hasMapping = Array.isArray(payload.mapping) && payload.mapping.length > 0;
+  const mapped = hasMapping && applyMapping(payload.mapping);
+  if (!mapped) applyHeuristic();
 
   if (payload.filename) {
     document.getElementById("attachHint").textContent =
       `転記元の契約書「${payload.filename}」は自動添付されません。添付欄から選択してください。`;
   }
-  showFlash("契約書アブストラクターからの転記データをフォームに反映しました。内容をご確認のうえ「この内容で申請する」を押してください。");
+  showFlash(
+    mapped
+      ? "転記データを入力欄マッピングに従ってフォームに記入しました。内容をご確認のうえ「この内容で申請する」を押してください。"
+      : "契約書アブストラクターからの転記データをフォームに反映しました。内容をご確認のうえ「この内容で申請する」を押してください。"
+  );
   fTitle.scrollIntoView({ block: "start" });
 })();
 

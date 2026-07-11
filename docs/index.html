@@ -78,6 +78,39 @@
   .fmt-del { color: var(--sub); }
   .fmt-del:hover { color: var(--err); border-color: var(--err); }
 
+  #panel-transfer h3 { font-size: 15px; margin: 0 0 8px; }
+  .transfer-sec { margin-bottom: 30px; max-width: 860px; }
+  .url-input {
+    width: 100%; font: inherit; font-size: 16px;
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
+  }
+  .url-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .transfer-actions { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .shot-status { font-size: 12px; color: var(--sub); }
+  .shot-status.err { color: var(--err); }
+  .shot-status.ok { color: var(--ok); }
+  #shotPreview {
+    max-width: 340px; max-height: 240px; display: none;
+    border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px;
+  }
+  table.map-table {
+    border-collapse: collapse; width: 100%; font-size: 13px;
+    background: var(--card); border: 1px solid var(--line);
+    margin-bottom: 10px;
+  }
+  .map-table th {
+    background: #faf9f6; color: var(--sub); font-size: 12px; font-weight: 600;
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line);
+  }
+  .map-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .map-table td.arrow { color: var(--sub); text-align: center; width: 2em; }
+  .map-table td input {
+    width: 100%; font: inherit; font-size: 16px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+  }
+  .map-table td input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .map-table td.op { width: 3em; text-align: center; }
+
   #dropzone {
     border: 2px dashed var(--line);
     border-radius: 12px;
@@ -224,13 +257,6 @@
     契約書ファイルも抽出のために Anthropic API へ直接送信されるのみで、他のサーバーには保存されません。
     キーを変更する場合は、新しいキーを入力して保存してください。
   </div>
-  <label for="transferUrl" style="margin-top: 18px">転記先URL</label>
-  <input type="text" id="transferUrl" placeholder="例: kessai.html や https://example.com/entry" autocomplete="off">
-  <div class="note">
-    抽出結果カードの「転記」ボタンを押すと、このURLを開いてデータを引き渡します(URL末尾の #data= にJSONを付与)。
-    初期値はサンプルの<a href="kessai.html" target="_blank" rel="noopener">社内決裁システム(デモ)</a>です。
-    転記すると稟議書として自動起票されます。空欄にすると転記ボタンは動作しません。
-  </div>
   <div class="actions">
     <button id="settingsSave" class="primary">保存して閉じる</button>
   </div>
@@ -240,6 +266,7 @@
   <div class="tabs">
     <button class="tab active" data-panel="extract">契約書読み込み</button>
     <button class="tab" data-panel="formats">フォーマット設定</button>
+    <button class="tab" data-panel="transfer">転記先設定</button>
   </div>
 
   <div id="panel-formats" style="display: none">
@@ -249,6 +276,44 @@
     </p>
     <div id="formatList"></div>
     <button id="addFormatBtn" class="primary">+ フォーマットを追加</button>
+  </div>
+
+  <div id="panel-transfer" style="display: none">
+    <p class="fmt-help">
+      転記先のWebサイトと、どの入力欄にどの項目を入れるか(マッピング)を設定します。
+      抽出結果カードの「転記」ボタンを押すと、この設定に従って転記先の入力欄に値が記入されます。
+    </p>
+
+    <div class="transfer-sec">
+      <h3>転記先URL</h3>
+      <input type="text" id="transferUrl" class="url-input" placeholder="例: kessai.html や https://example.com/entry" autocomplete="off">
+      <p class="fmt-help">
+        初期値はサンプルの<a href="kessai.html" target="_blank" rel="noopener">社内決裁システム(デモ)</a>です。
+        空欄にすると転記ボタンは動作しません。
+      </p>
+    </div>
+
+    <div class="transfer-sec">
+      <h3>入力欄マッピング</h3>
+      <p class="fmt-help">
+        転記先フォームのスクリーンショットに「この欄には取引先名」「金額(税込)はここ」のように追記した画像をアップロードすると、
+        AIが追記を読み取って「転記先の入力欄 ← フォーマットの項目」の対応表を自動生成します。表は手で修正・追加もできます。
+      </p>
+      <input type="file" id="shotInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      <div class="transfer-actions">
+        <button id="shotBtn" class="primary">スクショを読み込んでマッピング生成</button>
+        <span id="shotStatus" class="shot-status"></span>
+      </div>
+      <img id="shotPreview" alt="アップロードしたスクリーンショット">
+      <table class="map-table">
+        <thead>
+          <tr><th>転記先の入力欄</th><th></th><th>フォーマットの項目</th><th></th></tr>
+        </thead>
+        <tbody id="mapBody"></tbody>
+      </table>
+      <button id="addMapRow">+ 行を追加</button>
+      <p class="fmt-help">マッピングが空の場合は、項目名からの自動推測で転記されます。</p>
+    </div>
   </div>
 
   <div id="panel-extract">
@@ -434,6 +499,197 @@ transferInput.addEventListener("change", () => {
   localStorage.setItem("transfer_url", transferInput.value.trim());
 });
 
+// ---- 入力欄マッピング(転記先の欄 ← フォーマット項目) ----
+const MAPPING_SCHEMA = {
+  type: "object",
+  properties: {
+    mappings: {
+      type: "array",
+      description: "スクリーンショットへの追記から読み取った、転記先の入力欄とフォーマット項目の対応",
+      items: {
+        type: "object",
+        properties: {
+          destination_field: {
+            type: "string",
+            description: "転記先フォームの入力欄の名前(スクリーンショットに表示されているラベルをそのまま)",
+          },
+          source_item: {
+            type: "string",
+            description: "その欄に入れるフォーマット項目名。与えられた項目一覧の中から選ぶ(追記が一覧にない項目を指している場合はその文言のまま)",
+          },
+        },
+        required: ["destination_field", "source_item"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["mappings"],
+  additionalProperties: false,
+};
+
+function loadMapping() {
+  try { return JSON.parse(localStorage.getItem("transfer_mapping") || "[]"); } catch { return []; }
+}
+function saveMapping(list) {
+  localStorage.setItem("transfer_mapping", JSON.stringify(list));
+}
+
+function currentFormatItems() {
+  const fmt = activeFormat();
+  if (fmt && (fmt.text || "").trim()) {
+    return fmt.text
+      .split("\n")
+      .map((l) => l.replace(/^[\s・\-*0-9.、)]+/, "").trim())
+      .filter(Boolean);
+  }
+  return COLUMNS.filter((c) => c.key !== "filename").map((c) => c.label);
+}
+
+const mapBody = document.getElementById("mapBody");
+
+function renderMapping() {
+  const list = loadMapping();
+  mapBody.innerHTML = "";
+  list.forEach((m, i) => {
+    const tr = document.createElement("tr");
+
+    const tdDest = document.createElement("td");
+    const destInput = document.createElement("input");
+    destInput.type = "text";
+    destInput.placeholder = "例: 件名";
+    destInput.value = m.dest || "";
+    destInput.addEventListener("change", () => {
+      const l = loadMapping();
+      l[i].dest = destInput.value.trim();
+      saveMapping(l);
+    });
+    tdDest.appendChild(destInput);
+
+    const tdArrow = document.createElement("td");
+    tdArrow.className = "arrow";
+    tdArrow.textContent = "←";
+
+    const tdSrc = document.createElement("td");
+    const srcInput = document.createElement("input");
+    srcInput.type = "text";
+    srcInput.placeholder = "例: 契約書名";
+    srcInput.value = m.source || "";
+    srcInput.addEventListener("change", () => {
+      const l = loadMapping();
+      l[i].source = srcInput.value.trim();
+      saveMapping(l);
+    });
+    tdSrc.appendChild(srcInput);
+
+    const tdOp = document.createElement("td");
+    tdOp.className = "op";
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "✕";
+    del.title = "この行を削除";
+    del.addEventListener("click", () => {
+      const l = loadMapping();
+      l.splice(i, 1);
+      saveMapping(l);
+      renderMapping();
+    });
+    tdOp.appendChild(del);
+
+    tr.append(tdDest, tdArrow, tdSrc, tdOp);
+    mapBody.appendChild(tr);
+  });
+}
+
+document.getElementById("addMapRow").addEventListener("click", () => {
+  const l = loadMapping();
+  l.push({ dest: "", source: "" });
+  saveMapping(l);
+  renderMapping();
+  const inputs = mapBody.querySelectorAll("input");
+  inputs[inputs.length - 2]?.focus();
+});
+
+// スクショ読み取り → マッピング生成
+const shotInput = document.getElementById("shotInput");
+const shotStatus = document.getElementById("shotStatus");
+document.getElementById("shotBtn").addEventListener("click", () => shotInput.click());
+shotInput.addEventListener("change", async () => {
+  const file = shotInput.files[0];
+  shotInput.value = "";
+  if (!file) return;
+  const apiKey = (localStorage.getItem("anthropic_api_key") || "").trim();
+  if (!apiKey) {
+    settings.showModal();
+    alert("APIキーが未設定です。右上の「⚙ 設定」から入力してください");
+    return;
+  }
+  const preview = document.getElementById("shotPreview");
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
+  shotStatus.className = "shot-status";
+  shotStatus.textContent = "スクリーンショットを読み取り中…";
+
+  try {
+    const b64 = await readAsBase64(file);
+    const items = currentFormatItems();
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 2048,
+        output_config: { format: { type: "json_schema", schema: MAPPING_SCHEMA } },
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: file.type, data: b64 } },
+              {
+                type: "text",
+                text: `これは契約データの転記先となるWebサイトの入力フォームのスクリーンショットです。
+ユーザーが矢印・丸囲み・手書き文字・注釈などで「どの入力欄にどの項目を入れるか」を追記しています。
+
+追記を読み取り、転記先の入力欄とフォーマット項目の対応(マッピング)を返してください。
+
+ルール:
+- destination_field はスクリーンショット上の入力欄のラベル名をそのまま使う
+- source_item は次の項目一覧から最も一致するものを選ぶ(追記が一覧にない項目を指す場合はその文言のまま)
+- 追記で対応が示されている欄だけを返す(追記のない欄は含めない)
+
+【フォーマット項目一覧】
+${items.map((i) => "・" + i).join("\n")}`,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!resp.ok) {
+      let detail = `HTTP ${resp.status}`;
+      try { detail = (await resp.json())?.error?.message || detail; } catch {}
+      throw new Error(detail);
+    }
+    const message = await resp.json();
+    const text = (message.content || []).find((b) => b.type === "text")?.text;
+    if (!text) throw new Error("読み取り結果を取得できませんでした");
+    const data = JSON.parse(text);
+    const list = (data.mappings || []).map((m) => ({ dest: m.destination_field, source: m.source_item }));
+    if (!list.length) throw new Error("追記から対応関係を読み取れませんでした。矢印や項目名の書き込みを確認してください");
+    saveMapping(list);
+    renderMapping();
+    shotStatus.className = "shot-status ok";
+    shotStatus.textContent = `✓ ${list.length}件のマッピングを生成しました(下の表で修正できます)`;
+  } catch (err) {
+    shotStatus.className = "shot-status err";
+    shotStatus.textContent = "失敗: " + err.message;
+  }
+});
+
 function rowToFields(row) {
   if (row.__items) return row.__items.map((it) => ({ label: it.label, value: it.value }));
   return COLUMNS.filter((c) => c.key !== "filename").map((c) => ({
@@ -454,6 +710,7 @@ function transferRow(row) {
     transferred_at: new Date().toISOString(),
     filename: row.filename || "",
     fields: rowToFields(row),
+    mapping: loadMapping().filter((m) => (m.dest || "").trim() && (m.source || "").trim()),
   };
   const sep = url.includes("#") ? "&" : "#";
   window.open(url + sep + "data=" + encodeURIComponent(JSON.stringify(payload)), "_blank");
@@ -470,8 +727,9 @@ if (!(localStorage.getItem("anthropic_api_key") || "").trim()) {
 document.querySelectorAll(".tab").forEach((t) => {
   t.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
-    document.getElementById("panel-extract").style.display = t.dataset.panel === "extract" ? "" : "none";
-    document.getElementById("panel-formats").style.display = t.dataset.panel === "formats" ? "" : "none";
+    ["extract", "formats", "transfer"].forEach((p) => {
+      document.getElementById("panel-" + p).style.display = t.dataset.panel === p ? "" : "none";
+    });
   });
 });
 
@@ -945,6 +1203,7 @@ document.getElementById("csvBtn").addEventListener("click", () => {
 render();
 renderFormats();
 updateFormatBadge();
+renderMapping();
 </script>
 </body>
 </html>
