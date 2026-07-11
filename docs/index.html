@@ -389,18 +389,23 @@ function refreshKeyStatus() {
   const has = !!(localStorage.getItem("anthropic_api_key") || "").trim();
   keyStatus.textContent = has ? "✓ キーは保存済みです" : "キーが未設定です";
   keyStatus.className = has ? "ok" : "none";
+  // 保存済みのキーは表示しない(欄は変更時のみ入力)
+  keyInput.placeholder = has ? "保存済み(変更する場合のみ入力)" : "sk-ant-...";
 }
 
 document.getElementById("settingsBtn").addEventListener("click", () => {
-  keyInput.value = localStorage.getItem("anthropic_api_key") || "";
+  keyInput.value = "";
   refreshKeyStatus();
   settings.showModal();
 });
 
 function saveKey() {
   const v = keyInput.value.trim();
-  if (v) localStorage.setItem("anthropic_api_key", v);
-  else localStorage.removeItem("anthropic_api_key");
+  if (v) {
+    localStorage.setItem("anthropic_api_key", v);
+    keyInput.value = "";
+  }
+  // 空欄のままなら既存のキーを維持(消去は「キーを消去」ボタンで)
   refreshKeyStatus();
 }
 
